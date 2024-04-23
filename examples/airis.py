@@ -45,7 +45,7 @@ class Airis:
         self.last_change_grid = set()
         self.prev_last_change_pos = set()
         self.prev_last_change_grid = set()
-        self.given_goal = None
+        self.given_goal = None #([0, 65, 0, None, None],[])
         self.applied_rules_pos = dict()
         self.applied_rules_grid = dict()
         self.bad_predictions_pos = None
@@ -53,7 +53,7 @@ class Airis:
         self.prev_applied_rules_pos = None
         self.prev_applied_rules_grid = None
         self.time_step = 0
-        self.actions = ['move', 'mine', 'jump', 'jump forward', 'turn 0', 'turn 45', 'turn 90', 'turn 135', 'turn 180', 'turn 225', 'turn 270' 'turn 315', 'look down', 'look up']
+        self.actions = ['move', 'mine', 'jump', 'turn 0', 'turn 45', 'turn 90', 'turn 135', 'turn 180', 'turn 225', 'turn 270' 'turn 315', 'look up', 'look ceiling', 'look down', 'look floor', 'look straight']
 
     def capture_input(self, pos_input, grid_input, action, state, pre):
         if pre:
@@ -106,7 +106,7 @@ class Airis:
                 clear_plan = True
                 for index in pos_mismatch:
                     try:
-                        self.bad_predictions_pos[index] = self.applied_rules_pos[index]
+                        self.bad_predictions_pos[index] = deepcopy(self.applied_rules_pos[index])
                         del self.applied_rules_pos[index]
                     except KeyError:
                         pass
@@ -118,7 +118,7 @@ class Airis:
                 clear_plan = True
                 for index in grid_mismatch:
                     try:
-                        self.bad_predictions_grid[index] = self.applied_rules_grid[index]
+                        self.bad_predictions_grid[index] = deepcopy(self.applied_rules_grid[index])
                         del self.applied_rules_grid[index]
                     except KeyError:
                         pass
@@ -127,10 +127,16 @@ class Airis:
                     self.create_rule(action, 'Grid', index, self.grid_input[index], new_grid_input[index])
 
             for index in self.applied_rules_pos.keys():
-                self.update_rule()
+                self.update_good_rule(self.applied_rules_pos[index])
 
             for index in self.applied_rules_grid.keys():
-                self.update_rule()
+                self.update_good_rule(self.applied_rules_grid[index])
+
+            for index in self.bad_predictions_pos.keys():
+                self.update_bad_rule(self.bad_predictions_pos[index])
+
+            for index in self.bad_predictions_grid.keys():
+                self.update_bad_rule(self.bad_predictions_grid[index])
 
             print('Prediction Confidence: ', self.states[1].confidence)
             if clear_plan:
@@ -143,7 +149,32 @@ class Airis:
             self.prev_last_change_grid = deepcopy(self.last_change_grid)
 
     def make_plan(self):
-        pass
+        current_state = 0
+        state_heap = [(self.compare(0), 0)]
+        goal_reached = False
+        if state_heap[0][0] == 0:
+            goal_reached = True
+
+        while not goal_reached:
+            for act in self.actions:
+                try:
+                    check = self.knowledge['Action Rules'][act]
+                except KeyError:
+                    self.states.append(self.predict(act, 0))
+                    self.action_plan.append((act, 0))
+                    goal_reached = True
+                    break
+
+
+
+    def compare(self, state):
+        compare_total = 0
+        # Compare current position to goal position
+        for i, c_val in enumerate(self.given_goal[0]):
+            if c_val is not None:
+                compare_total += abs(c_val - self.states[state].pos_input[i])
+
+        return compare_total
 
     def predict(self, act, base_state):
         confidence_count = 0
@@ -164,6 +195,7 @@ class Airis:
                 continue
 
             idx_heap = self.predict_pos_conditions('Pos', idx, val, rules_list, predict_state)
+            print('Size of Pos idx_heap', len(idx_heap))
 
             while idx_heap:
                 pos_data = heapq.heappop(idx_heap)
@@ -176,8 +208,8 @@ class Airis:
                 grid_data = self.predict_grid_conditions('Pos', idx, val, rule, predict_state)
                 diff_count += grid_data[0]
                 heapq.heappush(predict_heap['Pos' + str(idx)],(diff_count, rule, idx, new_val, 'Pos', pos_data[2] + grid_data[1], updates, age))
-                # if diff_count == 0:
-                #     break
+                if diff_count == 0:
+                    break
 
         # Evaluate grid input
         for idx, val in enumerate(predict_state.grid_input):
@@ -189,6 +221,7 @@ class Airis:
                 continue
 
             idx_heap = self.predict_pos_conditions('Grid', idx, val, rules_list, predict_state)
+            print('Size of Grid idx_heap', len(idx_heap))
 
             while idx_heap:
                 pos_data = heapq.heappop(idx_heap)
@@ -201,8 +234,8 @@ class Airis:
                 grid_data = self.predict_grid_conditions('Grid', idx, val, rule, predict_state)
                 diff_count += grid_data[0]
                 heapq.heappush(predict_heap['Grid'+str(idx)], (diff_count, rule, idx, new_val, 'Grid', pos_data[2] + grid_data[1], updates, age))
-                # if diff_count == 0:
-                #     break
+                if diff_count == 0:
+                    break
 
         # Apply changes to predict state
         for idx_key in predict_heap.keys():
@@ -241,6 +274,8 @@ class Airis:
                     diff_count += 1
 
             heapq.heappush(idx_rule_heap, (diff_count, rule, len(condition_set)))
+            if diff_count == 0:
+                break
 
         return idx_rule_heap
 
@@ -271,6 +306,16 @@ class Airis:
         conditions_grid = self.grid_input
         conditions_grid_set = set(range(len(self.grid_input)))
         conditions_grid_freq = [1] * len(self.grid_input)
+
+        try:
+            check = self.knowledge['Action Rules']
+        except KeyError:
+            self.knowledge['Action Rules'] = dict()
+
+        try:
+            self.knowledge['Action Rules'][act].append(new_rule)
+        except KeyError:
+            self.knowledge['Action Rules'][act] = [new_rule]
 
         if input_type == 'Pos':
             try:
@@ -311,8 +356,65 @@ class Airis:
         self.knowledge['Grid-' + str(index) + '/' + str(o_val) + '/' + str(new_rule) + '/Grid Conditions Set'] = conditions_grid_set
         self.knowledge['Grid-' + str(index) + '/' + str(o_val) + '/' + str(new_rule) + '/Grid Conditions Freq'] = conditions_grid_freq
 
-    def update_rule(self):
-        pass
+    def update_good_rule(self, rule_data):
+        # rule data format: (diff_count, rule, idx, new_val, 'Grid' / 'Pos', pos_data[2] + grid_data[1], updates, age)
+        idx = rule_data[2]
+        rule = rule_data[1]
+        t = rule_data[4]
+        o_val = None
+        if t == 'Pos':
+            o_val = idx
+        elif t == 'Grid':
+            o_val = self.grid_input[idx]
+
+        pos_remove_list = []
+        grid_remove_list = []
+
+        for u_idx in self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Set']:
+            if self.pos_input[u_idx] != self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][u_idx]:
+                self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Freq'][u_idx] = 0
+                pos_remove_list.append(u_idx)
+
+        for u_idx in self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set']:
+            if self.grid_input[u_idx] != self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions'][u_idx]:
+                self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Freq'][u_idx] = 0
+                grid_remove_list.append(u_idx)
+
+        for item in pos_remove_list:
+            self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Set'].remove(item)
+
+        for item in grid_remove_list:
+            self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set'].remove(item)
+
+    def update_bad_rule(self, rule_data):
+        # rule data format: (diff_count, rule, idx, new_val, 'Grid' / 'Pos', pos_data[2] + grid_data[1], updates, age)
+        idx = rule_data[2]
+        rule = rule_data[1]
+        t = rule_data[4]
+        o_val = None
+        if t == 'Pos':
+            o_val = idx
+        elif t == 'Grid':
+            o_val = self.grid_input[idx]
+
+        pos_add_list = []
+        grid_add_list = []
+
+        for u_idx, val in enumerate(self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions']):
+            if self.pos_input[u_idx] == val:
+                self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Freq'][u_idx] = 1
+                pos_add_list.append(u_idx)
+
+        for u_idx, val in enumerate(self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set']):
+            if self.grid_input[u_idx] == val:
+                self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Freq'][u_idx] = 1
+                grid_add_list.append(u_idx)
+
+        for item in pos_add_list:
+            self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Set'].add(item)
+
+        for item in grid_add_list:
+            self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set'].add(item)
 
     def lookDir(self, rob, pitch, yaw):
         logging.info("\tinside lookDir")
@@ -359,21 +461,52 @@ class Airis:
         return dist
 
     def jump_forward(self, rob):
-        stats_old = None
+        stats = [mc.getFullStat(key) for key in fullStatKeys]
+        o_pitch = round(stats[3])
+        o_yaw = round(stats[4]) % 360
+        s_pos = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2])]
+        e_pos = s_pos
+        match o_yaw:
+            case 0:
+                e_pos = [s_pos[0], s_pos[1], s_pos[2] + 1]
+            case 45:
+                e_pos = [s_pos[0] - 1, s_pos[1], s_pos[2] + 1]
+            case 90:
+                e_pos = [s_pos[0] - 1, s_pos[1], s_pos[2]]
+            case 135:
+                e_pos = [s_pos[0] - 1, s_pos[1], s_pos[2] - 1]
+            case 180:
+                e_pos = [s_pos[0], s_pos[1], s_pos[2] - 1]
+            case 225:
+                e_pos = [s_pos[0] + 1, s_pos[1], s_pos[2] - 1]
+            case 270:
+                e_pos = [s_pos[0] + 1, s_pos[1], s_pos[2]]
+            case 315:
+                e_pos = [s_pos[0] + 1, s_pos[1], s_pos[2] + 1]
+        self.lookAt(rob, e_pos)
         rob.sendCommand('move 1')
         rob.sendCommand('jump 1')
-        sleep(0.5)
-        rob.sendCommand('jump 0')
+        timeout = time()
+        timedout = False
+        while [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2])] != [e_pos[0], math.floor(stats[1]), e_pos[2]]:
+            self.lookAt(rob, e_pos)
+            if time() > timeout + 1:
+                timedout = True
+                break
+            stats = [mc.getFullStat(key) for key in fullStatKeys]
         rob.sendCommand('move 0')
-        sleep(0.2)
-        stats_new = [mc.getFullStat(key) for key in fullStatKeys]
-        while stats_new != stats_old:
-            stats_old = stats_new
-            sleep(0.2)
-            stats_new = [mc.getFullStat(key) for key in fullStatKeys]
-
-    def move_forward(self, rob, o_pitch, o_yaw):
+        rob.sendCommand('jump 0')
+        sleep(.02)
+        self.lookDir(rob, o_pitch, o_yaw)
         stats = [mc.getFullStat(key) for key in fullStatKeys]
+        if [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2])] != [e_pos[0], math.floor(stats[1]), e_pos[2]]:
+            if not timedout:
+                self.center(rob, [e_pos[0], math.floor(stats[1]), e_pos[2]], o_pitch, o_yaw)
+
+    def move_forward(self, rob):
+        stats = [mc.getFullStat(key) for key in fullStatKeys]
+        o_pitch = round(stats[3])
+        o_yaw = round(stats[4]) % 360
         s_pos = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2])]
         e_pos = s_pos
         match o_yaw:
@@ -414,14 +547,22 @@ class Airis:
                 self.center(rob, [e_pos[0], math.floor(stats[1]), e_pos[2]], o_pitch, o_yaw)
 
     def mine(self, rob):
+        stats_old = [mc.getFullStat(key) for key in fullStatKeys]
         rob.sendCommand('attack 1')
         timeout = 0
-        while self.grid_input == mc.getNearGrid():
+        while np.all(self.grid_input == mc.getNearGrid()):
             sleep(0.2)
             timeout += 0.2
-            if timeout > 10:
+            if timeout > 30:
                 break
         rob.sendCommand('attack 0')
+        sleep(0.2)
+        stats = [mc.getFullStat(key) for key in fullStatKeys]
+        while stats != stats_old:
+            stats_old = stats
+            sleep(0.1)
+            stats = [mc.getFullStat(key) for key in fullStatKeys]
+
 
     def save_knowledge(self, fname):
         np.save(fname, self.knowledge)
@@ -454,85 +595,129 @@ if __name__ == '__main__':
 
     fullStatKeys = ['XPos', 'YPos', 'ZPos', 'Pitch', 'Yaw']
 
-    sleep(20)
+    sleep(60)
+    print('starting!')
 
     airis.lookDir(rob, 0, 0)
 
     stats = [mc.getFullStat(key) for key in fullStatKeys]
     stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
     grid = mc.getNearGrid()
+    stats_old = stats
 
-    # Test routine
-    for test in range(10):
-        action, state = airis.capture_input(stats, grid, 'move', None, True)
-        airis.move_forward(rob, 0, 0)
+    # Test routine 3 (dig straight down)
+    action, state = airis.capture_input(stats, grid, 'look floor', None, True)
+    airis.lookDir(rob, 90, 0)
+    stats = [mc.getFullStat(key) for key in fullStatKeys]
+    stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
+    grid = mc.getNearGrid()
+    airis.capture_input(stats, grid, action, state, False)
+
+    for test in range(20):
+        action, state = airis.capture_input(stats, grid, 'mine', None, True)
+        airis.mine(rob)
         stats = [mc.getFullStat(key) for key in fullStatKeys]
         stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
         grid = mc.getNearGrid()
         airis.capture_input(stats, grid, action, state, False)
 
-        action, state = airis.capture_input(stats, grid, 'turn 45', None, True)
-        airis.lookDir(rob, 0, 45)
-        stats = [mc.getFullStat(key) for key in fullStatKeys]
-        stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
-        grid = mc.getNearGrid()
-        airis.capture_input(stats, grid, action, state, False)
+    # # Test routine 2 (walk forward until collision, then jump forward, then continue walking forward)
+    # for test in range(10):
+    #     action, state = airis.capture_input(stats, grid, 'move', None, True)
+    #     airis.move_forward(rob, 0, 0)
+    #     stats = [mc.getFullStat(key) for key in fullStatKeys]
+    #     stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
+    #     grid = mc.getNearGrid()
+    #     airis.capture_input(stats, grid, action, state, False)
+    #
+    #     while stats_old != stats:
+    #         stats_old = stats
+    #         action, state = airis.capture_input(stats, grid, 'move', None, True)
+    #         airis.move_forward(rob, 0, 0)
+    #         stats = [mc.getFullStat(key) for key in fullStatKeys]
+    #         stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
+    #         grid = mc.getNearGrid()
+    #         airis.capture_input(stats, grid, action, state, False)
+    #
+    #     stats_old = stats
+    #     action, state = airis.capture_input(stats, grid, 'jump', None, True)
+    #     airis.jump_forward(rob, 0, 0)
+    #     stats = [mc.getFullStat(key) for key in fullStatKeys]
+    #     stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
+    #     grid = mc.getNearGrid()
+    #     airis.capture_input(stats, grid, action, state, False)
 
-        action, state = airis.capture_input(stats, grid, 'turn 90', None, True)
-        airis.lookDir(rob, 0, 90)
-        stats = [mc.getFullStat(key) for key in fullStatKeys]
-        stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
-        grid = mc.getNearGrid()
-        airis.capture_input(stats, grid, action, state, False)
-
-        action, state = airis.capture_input(stats, grid, 'turn 135', None, True)
-        airis.lookDir(rob, 0, 135)
-        stats = [mc.getFullStat(key) for key in fullStatKeys]
-        stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
-        grid = mc.getNearGrid()
-        airis.capture_input(stats, grid, action, state, False)
-
-        action, state = airis.capture_input(stats, grid, 'turn 180', None, True)
-        airis.lookDir(rob, 0, 180)
-        stats = [mc.getFullStat(key) for key in fullStatKeys]
-        stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
-        grid = mc.getNearGrid()
-        airis.capture_input(stats, grid, action, state, False)
-
-        action, state = airis.capture_input(stats, grid, 'move', None, True)
-        airis.move_forward(rob, 0, 180)
-        stats = [mc.getFullStat(key) for key in fullStatKeys]
-        stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
-        grid = mc.getNearGrid()
-        airis.capture_input(stats, grid, action, state, False)
-
-        action, state = airis.capture_input(stats, grid, 'turn 135', None, True)
-        airis.lookDir(rob, 0, 135)
-        stats = [mc.getFullStat(key) for key in fullStatKeys]
-        stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
-        grid = mc.getNearGrid()
-        airis.capture_input(stats, grid, action, state, False)
-
-        action, state = airis.capture_input(stats, grid, 'turn 90', None, True)
-        airis.lookDir(rob, 0, 90)
-        stats = [mc.getFullStat(key) for key in fullStatKeys]
-        stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
-        grid = mc.getNearGrid()
-        airis.capture_input(stats, grid, action, state, False)
-
-        action, state = airis.capture_input(stats, grid, 'turn 45', None, True)
-        airis.lookDir(rob, 0, 45)
-        stats = [mc.getFullStat(key) for key in fullStatKeys]
-        stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
-        grid = mc.getNearGrid()
-        airis.capture_input(stats, grid, action, state, False)
-
-        action, state = airis.capture_input(stats, grid, 'turn 0', None, True)
-        airis.lookDir(rob, 0, 0)
-        stats = [mc.getFullStat(key) for key in fullStatKeys]
-        stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
-        grid = mc.getNearGrid()
-        airis.capture_input(stats, grid, action, state, False)
+    # # Test routine 1 (walk forward 1, turn around, walk forward 1, turn around, ...)
+    # for test in range(10):
+    #     action, state = airis.capture_input(stats, grid, 'move', None, True)
+    #     airis.move_forward(rob, 0, 0)
+    #     stats = [mc.getFullStat(key) for key in fullStatKeys]
+    #     stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
+    #     grid = mc.getNearGrid()
+    #     airis.capture_input(stats, grid, action, state, False)
+    #
+    #     action, state = airis.capture_input(stats, grid, 'turn 45', None, True)
+    #     airis.lookDir(rob, 0, 45)
+    #     stats = [mc.getFullStat(key) for key in fullStatKeys]
+    #     stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
+    #     grid = mc.getNearGrid()
+    #     airis.capture_input(stats, grid, action, state, False)
+    #
+    #     action, state = airis.capture_input(stats, grid, 'turn 90', None, True)
+    #     airis.lookDir(rob, 0, 90)
+    #     stats = [mc.getFullStat(key) for key in fullStatKeys]
+    #     stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
+    #     grid = mc.getNearGrid()
+    #     airis.capture_input(stats, grid, action, state, False)
+    #
+    #     action, state = airis.capture_input(stats, grid, 'turn 135', None, True)
+    #     airis.lookDir(rob, 0, 135)
+    #     stats = [mc.getFullStat(key) for key in fullStatKeys]
+    #     stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
+    #     grid = mc.getNearGrid()
+    #     airis.capture_input(stats, grid, action, state, False)
+    #
+    #     action, state = airis.capture_input(stats, grid, 'turn 180', None, True)
+    #     airis.lookDir(rob, 0, 180)
+    #     stats = [mc.getFullStat(key) for key in fullStatKeys]
+    #     stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
+    #     grid = mc.getNearGrid()
+    #     airis.capture_input(stats, grid, action, state, False)
+    #
+    #     action, state = airis.capture_input(stats, grid, 'move', None, True)
+    #     airis.move_forward(rob, 0, 180)
+    #     stats = [mc.getFullStat(key) for key in fullStatKeys]
+    #     stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
+    #     grid = mc.getNearGrid()
+    #     airis.capture_input(stats, grid, action, state, False)
+    #
+    #     action, state = airis.capture_input(stats, grid, 'turn 135', None, True)
+    #     airis.lookDir(rob, 0, 135)
+    #     stats = [mc.getFullStat(key) for key in fullStatKeys]
+    #     stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
+    #     grid = mc.getNearGrid()
+    #     airis.capture_input(stats, grid, action, state, False)
+    #
+    #     action, state = airis.capture_input(stats, grid, 'turn 90', None, True)
+    #     airis.lookDir(rob, 0, 90)
+    #     stats = [mc.getFullStat(key) for key in fullStatKeys]
+    #     stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
+    #     grid = mc.getNearGrid()
+    #     airis.capture_input(stats, grid, action, state, False)
+    #
+    #     action, state = airis.capture_input(stats, grid, 'turn 45', None, True)
+    #     airis.lookDir(rob, 0, 45)
+    #     stats = [mc.getFullStat(key) for key in fullStatKeys]
+    #     stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
+    #     grid = mc.getNearGrid()
+    #     airis.capture_input(stats, grid, action, state, False)
+    #
+    #     action, state = airis.capture_input(stats, grid, 'turn 0', None, True)
+    #     airis.lookDir(rob, 0, 0)
+    #     stats = [mc.getFullStat(key) for key in fullStatKeys]
+    #     stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
+    #     grid = mc.getNearGrid()
+    #     airis.capture_input(stats, grid, action, state, False)
 
     airis.save_knowledge('Knowledge.npy')
     print('Test Routine Complete')
