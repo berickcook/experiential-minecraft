@@ -7,7 +7,6 @@ from tagilmo.utils.vereya_wrapper import MCConnector, RobustObserver
 import tagilmo.utils.mission_builder as mb
 import numpy as np
 import uuid
-import random
 
 from copy import deepcopy
 from tagilmo.utils.mathutils import normAngle, degree2rad
@@ -124,9 +123,7 @@ class Airis:
                         pass
 
                 for index in pos_mismatch:
-                    print('creating pos rule...')
                     self.create_rule(action, 'Pos', index, self.pos_input[index], new_pos_input[index])
-                    print('pos mismatch', index, new_pos_input[index], self.states[state].pos_input[index])
 
             if grid_mismatch:
                 clear_plan = True
@@ -138,9 +135,7 @@ class Airis:
                         pass
 
                 for index in grid_mismatch:
-                    print('creating grid rule...')
                     self.create_rule(action, 'Grid', index, self.grid_input[index], new_grid_input[index])
-                print('grid mismatch', grid_mismatch)
 
             for index in self.applied_rules_pos.keys():
                 self.update_good_rule(self.applied_rules_pos[index])
@@ -182,11 +177,9 @@ class Airis:
 
         while not goal_reached:
             for act in self.actions:
-                print('Planning ', act)
                 try:
                     check = self.knowledge['Action Rules'][act]
                 except KeyError:
-                    print('No rules for ', act, 'found. Trying...')
                     self.states.append(self.predict(act, 0))
                     goal_reached = True
                     goal_state = len(self.states) - 1
@@ -195,16 +188,13 @@ class Airis:
                 new_state = self.predict(act, current_state)
                 state_hash = hash((tuple(new_state.pos_input), tuple(new_state.grid_input)))
                 if state_hash not in state_hash_set:
-                    print('Fresh predicted state')
                     self.states.append(new_state)
                     state_idx = len(self.states) - 1
                     goal_compare = self.compare(state_idx)
                     state_confidence = self.states[state_idx].confidence
-                    heapq.heappush(goal_heap, (goal_compare, state_idx, -state_confidence, act, state_hash))
+                    heapq.heappush(goal_heap, (goal_compare, state_idx, state_confidence, act, state_hash))
                     heapq.heappush(most_confidence_heap, (-state_confidence, state_idx, goal_compare, act, state_hash))
                     heapq.heappush(least_confidence_heap, (state_confidence, state_idx, goal_compare, act, state_hash))
-                else:
-                    print('Predicted state already in state hash')
 
             if goal_heap and not goal_reached:
                 if goal_heap[0][0] == 0:
@@ -212,7 +202,7 @@ class Airis:
                     goal_state = goal_heap[0][1]
                     break
 
-                if goal_heap[0][2] == -1:
+                if goal_heap[0][2] == 1:
                     current_state = goal_heap[0][1]
                     heapq.heappop(goal_heap)
                 else:
@@ -231,18 +221,19 @@ class Airis:
                         if goal_state == 0:
                             goal_state = goal_heap[0][1]
                             print('Trying best prediction towards goal')
-            if len(self.states) > 150:
+            if len(self.states) > 550:
                 goal_reached = True
-                while least_confidence_heap:
-                    data = heapq.heappop(least_confidence_heap)
-                    if data[4] != hash((tuple(self.pos_input), tuple(self.grid_input))):
-                        goal_state = data[1]
-                        print('Prediction depth reached, trying least confident prediction')
-                        break
+                while goal_heap:
+                    data = heapq.heappop(goal_heap)
+                    if data[2] != -1:
+                        if data[4] != hash((tuple(self.pos_input), tuple(self.grid_input))):
+                            goal_state = data[1]
+                            print('Prediction depth reached, trying least confident but closest to goal prediction')
+                            break
 
                 if goal_state == 0:
-                    goal_state = goal_heap[0][1]
-                    print('Prediction depth reached, trying best prediction towards goal')
+                    goal_state = least_confidence_heap[0][1]
+                    print('Prediction depth reached, trying least confident prediction')
 
         plan_state = goal_state
         self.action_plan.insert(0, (self.states[plan_state].action, plan_state))
@@ -666,6 +657,7 @@ class Airis:
         stats_old = [mc.getFullStat(key) for key in fullStatKeys]
         rob.sendCommand('attack 1')
         timeout = 0
+        sleep(0.2)
         while np.all(self.grid_input == mc.getNearGrid()):
             sleep(0.2)
             timeout += 0.2
@@ -785,6 +777,8 @@ if __name__ == '__main__':
         stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
         grid = mc.getNearGrid()
         airis.capture_input(stats, grid, action, state, False)
+        print('Current Stats', stats)
+        airis.save_knowledge('Knowledge.npy')
 
-    airis.save_knowledge('Knowledge.npy')
+
     print('Test Routine Complete')
