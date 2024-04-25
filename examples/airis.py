@@ -55,6 +55,7 @@ class Airis:
         self.prev_applied_rules_pos = None
         self.prev_applied_rules_grid = None
         self.time_step = 0
+        self.state_history = set()
         self.actions = ['move', 'jump', 'turn 0', 'turn 45', 'turn 90', 'turn 135', 'turn 180', 'turn 225', 'turn 270', 'turn 315', 'mine up', 'mine down', 'mine straight']
 
     def capture_input(self, pos_input, grid_input, action, state, pre):
@@ -66,6 +67,7 @@ class Airis:
                 self.states = [State(self.pos_input, self.grid_input, None, 0, 0)]
                 self.states[0].change_pos = self.last_change_pos
                 self.states[0].change_grid = self.last_change_grid
+                self.state_history.add(hash((tuple(self.pos_input), tuple(self.grid_input), self.last_action)))
 
             if self.given_goal:
                 if (self.pos_input[0], self.pos_input[1], self.pos_input[2]) == (self.given_goal[0][0], self.given_goal[0][1], self.given_goal[0][2]):
@@ -106,6 +108,8 @@ class Airis:
                 # create "no change" rules
                 for i, v in enumerate(self.pos_input):
                     self.create_rule(action, 'Pos', i, self.pos_input[i], new_pos_input[i])
+                for i, v in enumerate(self.grid_input):
+                    self.create_rule(action, 'Grid', i, self.grid_input[i], new_grid_input[i])
 
             pos_mismatch = [i for i, v in enumerate(self.states[state].pos_input) if v != new_pos_input[i]]
             grid_mismatch = [i for i, v in enumerate(self.states[state].grid_input) if v != new_grid_input[i]]
@@ -188,16 +192,17 @@ class Airis:
                     break
 
                 new_state = self.predict(act, current_state)
-                state_hash = hash((tuple(new_state.pos_input), tuple(new_state.grid_input)))
+                state_hash = hash((tuple(new_state.pos_input), tuple(new_state.grid_input), act))
+                history_hash = hash((tuple(new_state.pos_input), tuple(new_state.grid_input), act))
                 if state_hash not in state_hash_set:
                     self.states.append(new_state)
                     state_idx = len(self.states) - 1
                     goal_compare = self.compare(state_idx)
                     state_confidence = self.states[state_idx].confidence
-                    heapq.heappush(goal_heap, (goal_compare, state_idx, state_confidence, act, state_hash))
-                    heapq.heappush(compare_heap, (goal_compare, state_idx, state_confidence, act, state_hash))
-                    heapq.heappush(most_confidence_heap, (-state_confidence, state_idx, goal_compare, act, state_hash))
-                    heapq.heappush(least_confidence_heap, (state_confidence, state_idx, goal_compare, act, state_hash))
+                    heapq.heappush(goal_heap, (goal_compare, state_idx, state_confidence, act, state_hash, history_hash))
+                    heapq.heappush(compare_heap, (goal_compare, state_idx, state_confidence, act, state_hash, history_hash))
+                    heapq.heappush(most_confidence_heap, (-state_confidence, state_idx, goal_compare, act, state_hash, history_hash))
+                    heapq.heappush(least_confidence_heap, (state_confidence, state_idx, goal_compare, act, state_hash, history_hash))
                     state_hash_set.add(state_hash)
                     fresh_state = True
 
@@ -224,7 +229,7 @@ class Airis:
                         goal_found = False
                         while least_confidence_heap:
                             data = heapq.heappop(least_confidence_heap)
-                            if data[4] != hash((tuple(self.pos_input), tuple(self.grid_input))):
+                            if data[5] not in self.state_history:
                                 goal_state = data[1]
                                 goal_found = True
                                 print('Trying least confident prediction')
@@ -232,7 +237,8 @@ class Airis:
                                 break
 
                         if not goal_found:
-                            print('Ran out of ideas!')
+                            print('Ran out of ideas! Resetting history...')
+                            self.state_history = set()
 
             if not compare_heap and not goal_reached:
                 if most_confidence_heap:
@@ -244,7 +250,7 @@ class Airis:
                         goal_found = False
                         while least_confidence_heap:
                             data = heapq.heappop(least_confidence_heap)
-                            if data[4] != hash((tuple(self.pos_input), tuple(self.grid_input))):
+                            if data[5] not in self.state_history:
                                 goal_state = data[1]
                                 goal_found = True
                                 print('Trying least confident prediction')
@@ -252,9 +258,23 @@ class Airis:
                                 break
 
                         if not goal_found:
-                            print('Ran out of ideas!')
+                            print('Ran out of ideas! Resetting history...')
+                            self.state_history = set()
                 else:
-                    print('Out of states to predict from!')
+                    goal_reached = True
+                    goal_found = False
+                    while least_confidence_heap:
+                        data = heapq.heappop(least_confidence_heap)
+                        if data[5] not in self.state_history:
+                            goal_state = data[1]
+                            goal_found = True
+                            print('Trying least confident prediction')
+                            print('Goal State', goal_state)
+                            break
+
+                    if not goal_found:
+                        print('Ran out of ideas! Resetting history...')
+                        self.state_history = set()
 
             if len(self.states) > 550:
                 goal_reached = True
@@ -262,7 +282,7 @@ class Airis:
                 while goal_heap:
                     data = heapq.heappop(goal_heap)
                     if data[2] != 1:
-                        if data[4] != hash((tuple(self.pos_input), tuple(self.grid_input))):
+                        if data[5] not in self.state_history:
                             goal_state = data[1]
                             goal_found = True
                             print('Prediction depth reached, trying least confident but closest to goal prediction')
