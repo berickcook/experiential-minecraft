@@ -200,6 +200,8 @@ class Airis:
                 if goal_heap[0][0] == 0:
                     goal_reached = True
                     goal_state = goal_heap[0][1]
+                    print('Predicted state reaches goal! Trying...')
+                    print('Goal State', goal_state)
                     break
 
                 if goal_heap[0][2] == 1:
@@ -211,29 +213,37 @@ class Airis:
                         heapq.heappop(most_confidence_heap)
                     else:
                         goal_reached = True
+                        goal_found = False
                         while least_confidence_heap:
                             data = heapq.heappop(least_confidence_heap)
                             if data[4] != hash((tuple(self.pos_input), tuple(self.grid_input))):
                                 goal_state = data[1]
+                                goal_found = True
                                 print('Trying least confident prediction')
+                                print('Goal State', goal_state)
                                 break
 
-                        if goal_state == 0:
+                        if not goal_found:
                             goal_state = goal_heap[0][1]
                             print('Trying best prediction towards goal')
+                            print('Goal State', goal_state)
             if len(self.states) > 550:
                 goal_reached = True
+                goal_found = False
                 while goal_heap:
                     data = heapq.heappop(goal_heap)
-                    if data[2] != -1:
+                    if data[2] != 1:
                         if data[4] != hash((tuple(self.pos_input), tuple(self.grid_input))):
                             goal_state = data[1]
+                            goal_found = True
                             print('Prediction depth reached, trying least confident but closest to goal prediction')
+                            print('Goal State', goal_state)
                             break
 
-                if goal_state == 0:
+                if not goal_found:
                     goal_state = least_confidence_heap[0][1]
                     print('Prediction depth reached, trying least confident prediction')
+                    print('Goal State', goal_state)
 
         plan_state = goal_state
         self.action_plan.insert(0, (self.states[plan_state].action, plan_state))
@@ -288,11 +298,11 @@ class Airis:
                 if predict_heap['Pos' + str(idx)]:
                     if predict_heap['Pos' + str(idx)][0][0] == diff_count:
                         if age > predict_heap['Pos' + str(idx)][0][7]:
-                            heapq.heapreplace(predict_heap['Pos' + str(idx)],(diff_count, rule, idx, new_val, 'Pos', pos_data[2] + grid_data[1], updates, age))
+                            heapq.heapreplace(predict_heap['Pos' + str(idx)],(diff_count, rule, idx, new_val, 'Pos', pos_data[2] + grid_data[1], updates, age, idx))
                     else:
-                        heapq.heappush(predict_heap['Pos' + str(idx)],(diff_count, rule, idx, new_val, 'Pos', pos_data[2] + grid_data[1], updates, age))
+                        heapq.heappush(predict_heap['Pos' + str(idx)],(diff_count, rule, idx, new_val, 'Pos', pos_data[2] + grid_data[1], updates, age, idx))
                 else:
-                    heapq.heappush(predict_heap['Pos' + str(idx)], (diff_count, rule, idx, new_val, 'Pos', pos_data[2] + grid_data[1], updates, age))
+                    heapq.heappush(predict_heap['Pos' + str(idx)], (diff_count, rule, idx, new_val, 'Pos', pos_data[2] + grid_data[1], updates, age, idx))
                 # if diff_count == 0:
                 #     break
 
@@ -321,11 +331,11 @@ class Airis:
                 if predict_heap['Grid' + str(idx)]:
                     if predict_heap['Grid' + str(idx)][0][0] == diff_count:
                         if age > predict_heap['Grid' + str(idx)][0][7]:
-                            heapq.heapreplace(predict_heap['Grid' + str(idx)],(diff_count, rule, idx, new_val, 'Grid', pos_data[2] + grid_data[1], updates, age))
+                            heapq.heapreplace(predict_heap['Grid' + str(idx)],(diff_count, rule, idx, new_val, 'Grid', pos_data[2] + grid_data[1], updates, age, val))
                     else:
-                        heapq.heappush(predict_heap['Grid' + str(idx)],(diff_count, rule, idx, new_val, 'Grid', pos_data[2] + grid_data[1], updates, age))
+                        heapq.heappush(predict_heap['Grid' + str(idx)],(diff_count, rule, idx, new_val, 'Grid', pos_data[2] + grid_data[1], updates, age, val))
                 else:
-                    heapq.heappush(predict_heap['Grid' + str(idx)], (diff_count, rule, idx, new_val, 'Grid', pos_data[2] + grid_data[1], updates, age))
+                    heapq.heappush(predict_heap['Grid' + str(idx)], (diff_count, rule, idx, new_val, 'Grid', pos_data[2] + grid_data[1], updates, age, val))
                 # if diff_count == 0:
                 #     break
 
@@ -461,15 +471,11 @@ class Airis:
         self.knowledge['Grid-' + str(index) + '/' + str(o_val) + '/' + str(new_rule) + '/Grid Conditions Freq'] = conditions_grid_freq
 
     def update_good_rule(self, rule_data):
-        # rule data format: (diff_count, rule, idx, new_val, 'Grid' / 'Pos', pos_data[2] + grid_data[1], updates, age)
+        # rule data format: (diff_count, rule, idx, new_val, 'Grid' / 'Pos', pos_data[2] + grid_data[1], updates, age, o_val)
         idx = rule_data[2]
         rule = rule_data[1]
         t = rule_data[4]
-        o_val = None
-        if t == 'Pos':
-            o_val = idx
-        elif t == 'Grid':
-            o_val = self.grid_input[idx]
+        o_val = rule_data[8]
 
         pos_remove_list = []
         grid_remove_list = []
@@ -491,15 +497,11 @@ class Airis:
             self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set'].remove(item)
 
     def update_bad_rule(self, rule_data):
-        # rule data format: (diff_count, rule, idx, new_val, 'Grid' / 'Pos', pos_data[2] + grid_data[1], updates, age)
+        # rule data format: (diff_count, rule, idx, new_val, 'Grid' / 'Pos', pos_data[2] + grid_data[1], updates, age, o_val)
         idx = rule_data[2]
         rule = rule_data[1]
         t = rule_data[4]
-        o_val = None
-        if t == 'Pos':
-            o_val = idx
-        elif t == 'Grid':
-            o_val = self.grid_input[idx]
+        o_val = rule_data[8]
 
         pos_add_list = []
         grid_add_list = []
