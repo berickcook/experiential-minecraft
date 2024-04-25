@@ -177,6 +177,7 @@ class Airis:
             goal_reached = True
 
         while not goal_reached:
+            fresh_state = False
             for act in self.actions:
                 try:
                     check = self.knowledge['Action Rules'][act]
@@ -198,6 +199,10 @@ class Airis:
                     heapq.heappush(most_confidence_heap, (-state_confidence, state_idx, goal_compare, act, state_hash))
                     heapq.heappush(least_confidence_heap, (state_confidence, state_idx, goal_compare, act, state_hash))
                     state_hash_set.add(state_hash)
+                    fresh_state = True
+
+            if not fresh_state:
+                print('No fresh predictions found from current state', current_state)
 
             if compare_heap and not goal_reached:
                 if compare_heap[0][0] == 0:
@@ -217,20 +222,39 @@ class Airis:
                     else:
                         goal_reached = True
                         goal_found = False
-                        while goal_heap:
-                            data = heapq.heappop(goal_heap)
-                            if data[2] != 1:
-                                if data[4] != hash((tuple(self.pos_input), tuple(self.grid_input))):
-                                    goal_state = data[1]
-                                    goal_found = True
-                                    print('Trying least confident but closest to goal prediction')
-                                    print('Goal State', goal_state)
-                                    break
+                        while least_confidence_heap:
+                            data = heapq.heappop(least_confidence_heap)
+                            if data[4] != hash((tuple(self.pos_input), tuple(self.grid_input))):
+                                goal_state = data[1]
+                                goal_found = True
+                                print('Trying least confident prediction')
+                                print('Goal State', goal_state)
+                                break
 
                         if not goal_found:
-                            goal_state = least_confidence_heap[0][1]
-                            print('Trying least confident prediction')
-                            print('Goal State', goal_state)
+                            print('Ran out of ideas!')
+
+            if not compare_heap and not goal_reached:
+                if most_confidence_heap:
+                    if most_confidence_heap[0][0] == -1:
+                        current_state = most_confidence_heap[0][1]
+                        heapq.heappop(most_confidence_heap)
+                    else:
+                        goal_reached = True
+                        goal_found = False
+                        while least_confidence_heap:
+                            data = heapq.heappop(least_confidence_heap)
+                            if data[4] != hash((tuple(self.pos_input), tuple(self.grid_input))):
+                                goal_state = data[1]
+                                goal_found = True
+                                print('Trying least confident prediction')
+                                print('Goal State', goal_state)
+                                break
+
+                        if not goal_found:
+                            print('Ran out of ideas!')
+                else:
+                    print('Out of states to predict from!')
 
             if len(self.states) > 550:
                 goal_reached = True
