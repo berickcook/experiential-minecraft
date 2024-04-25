@@ -197,6 +197,7 @@ class Airis:
                     self.states.append(new_state)
                     state_idx = len(self.states) - 1
                     goal_compare = self.compare(state_idx)
+                    self.states[state_idx].compare = goal_compare
                     state_confidence = self.states[state_idx].confidence
                     heapq.heappush(goal_heap, (goal_compare, state_idx, state_confidence, act, state_hash))
                     heapq.heappush(compare_heap, (goal_compare, state_idx, state_confidence, act, state_hash))
@@ -226,74 +227,35 @@ class Airis:
                     else:
                         goal_reached = True
                         goal_found = False
-                        while goal_heap:
-                            data = heapq.heappop(goal_heap)
-                            if data[2] != 1:
-                                if data[4] not in self.state_history:
-                                    goal_state = data[1]
-                                    goal_found = True
-                                    print('From compare heap: Trying low confidence prediction closest to goal')
-                                    print('Goal State', goal_state)
-                                    break
-
-                        if not goal_found:
-                            print('Ran out of ideas! Resetting history...')
-                            self.state_history = set()
-
-            if not compare_heap and not goal_reached:
-                if most_confidence_heap:
-                    if most_confidence_heap[0][0] == -1:
-                        current_state = most_confidence_heap[0][1]
-                        heapq.heappop(most_confidence_heap)
-                    else:
-                        goal_reached = True
-                        goal_found = False
-                        while goal_heap:
-                            data = heapq.heappop(goal_heap)
-                            if data[2] != 1:
-                                if data[4] not in self.state_history:
-                                    goal_state = data[1]
-                                    goal_found = True
-                                    print('From most confident heap: Trying low confidence prediction closest to goal')
-                                    print('Goal State', goal_state)
-                                    break
-
-                        if not goal_found:
-                            print('Ran out of ideas! Resetting history...')
-                            self.state_history = set()
-                else:
-                    goal_reached = True
-                    goal_found = False
-                    while goal_heap:
                         data = heapq.heappop(goal_heap)
-                        if data[2] != 1:
-                            if data[4] not in self.state_history:
-                                goal_state = data[1]
-                                goal_found = True
-                                print('From no heaps: Trying low confidence prediction closest to goal')
-                                print('Goal State', goal_state)
+                        low_heap = []
+                        heapq.heappush(low_heap, (data[2], data))
+                        if goal_heap:
+                            while goal_heap[0][0] == data[0]:
+                                low_data = heapq.heappop(goal_heap)
+                                heapq.heappush(low_heap, (low_data[2], low_data))
+                                if not goal_heap:
+                                    break
+
+                        while low_heap[0][1][4] in self.state_history:
+                            heapq.heappop(low_heap)
+                            if not low_heap:
                                 break
 
-                    if not goal_found:
-                        print('Ran out of ideas! Resetting history...')
-                        self.state_history = set()
+                        if low_heap:
+                            goal_state = low_heap[0][1][1]
+                            goal_found = True
+                            print('From compare heap: Trying lowest confidence prediction closest to goal')
+                            print('Goal State', goal_state)
+                            print('Compare', self.states[goal_state].compare)
+
+                        if not goal_found:
+                            print('Ran out of ideas! Resetting history...')
+                            self.state_history = set()
 
             if len(self.states) > 550:
                 goal_reached = True
-                goal_found = False
-                while goal_heap:
-                    data = heapq.heappop(goal_heap)
-                    if data[2] != 1:
-                        if data[4] not in self.state_history:
-                            goal_state = data[1]
-                            goal_found = True
-                            print('Prediction depth reached, trying least confident but closest to goal prediction')
-                            print('Goal State', goal_state)
-                            break
-
-                if not goal_found:
-                    print('Ran out of ideas! Resetting history...')
-                    self.state_history = set()
+                goal_state = goal_heap[0][1]
 
         plan_state = goal_state
         self.action_plan.insert(0, (self.states[plan_state].action, plan_state))
