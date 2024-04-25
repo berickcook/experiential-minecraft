@@ -56,7 +56,11 @@ class Airis:
         self.prev_applied_rules_grid = None
         self.time_step = 0
         self.state_history = set()
-        self.actions = ['move', 'jump', 'turn 0', 'turn 45', 'turn 90', 'turn 135', 'turn 180', 'turn 225', 'turn 270', 'turn 315', 'mine up', 'mine down', 'mine straight']
+        self.actions = ['move 0', 'move 45', 'move 90', 'move 135', 'move 180', 'move 225', 'move 270', 'move 315',
+                        'jump 0', 'jump 45', 'jump 90', 'jump 135', 'jump 180', 'jump 225', 'jump 270', 'jump 315',
+                        'mine up 0', 'mine up 45', 'mine up 90', 'mine up 135', 'mine up 180', 'mine up 225', 'mine up 270', 'mine up 315',
+                        'mine down 0', 'mine down 45', 'mine down 90', 'mine down 135', 'mine down 180', 'mine down 225', 'mine down 270', 'mine down 315',
+                        'mine straight 0', 'mine straight 45', 'mine straight 90', 'mine straight 135', 'mine straight 180', 'mine straight 225', 'mine straight 270', 'mine straight 315']
 
     def capture_input(self, pos_input, grid_input, action, state, pre):
         if pre:
@@ -729,63 +733,195 @@ if __name__ == '__main__':
     while not airis.goal_acheived:
         action, state = airis.capture_input(stats, grid, None, None, True)
         print('performing action', action)
-        # self.actions = ['move', 'jump', 'turn 0', 'turn 45', 'turn 90', 'turn 135', 'turn 180', 'turn 225', 'turn 270',
-        # 'turn 315', 'mine up', 'mine ceiling', 'mine down', 'mine floor', 'mine straight']
+        # self.actions = ['move 0', 'move 45', 'move 90', 'move 135', 'move 180', 'move 225', 'move 270', 'move 315',
+        #                 'jump 0', 'jump 45', 'jump 90', 'jump 135', 'jump 180', 'jump 225', 'jump 270', 'jump 315',
+        #                 'mine up 0', 'mine up 45', 'mine up 90', 'mine up 135', 'mine up 180', 'mine up 225', 'mine up 270', 'mine up 315',
+        #                 'mine down 0', 'mine down 45', 'mine down 90', 'mine down 135', 'mine down 180', 'mine down 225', 'mine down 270', 'mine down 315',
+        #                 'mine straight 0', 'mine straight 45', 'mine straight 90', 'mine straight 135', 'mine straight 180', 'mine straight 225', 'mine straight 270', 'mine straight 315']
         match action:
-            case 'move':
+            case 'move 0':
+                airis.lookDir(rob, 0, 0)
                 airis.move_forward(rob)
 
-            case 'jump':
+            case 'move 45':
+                airis.lookDir(rob, 0, 45)
+                airis.move_forward(rob)
+
+            case 'move 90':
+                airis.lookDir(rob, 0, 90)
+                airis.move_forward(rob)
+
+            case 'move 135':
+                airis.lookDir(rob, 0, 135)
+                airis.move_forward(rob)
+
+            case 'move 180':
+                airis.lookDir(rob, 0, 180)
+                airis.move_forward(rob)
+
+            case 'move 225':
+                airis.lookDir(rob, 0, 225)
+                airis.move_forward(rob)
+
+            case 'move 270':
+                airis.lookDir(rob, 0, 270)
+                airis.move_forward(rob)
+
+            case 'move 315':
+                airis.lookDir(rob, 0, 315)
+                airis.move_forward(rob)
+
+            case 'jump 0':
+                airis.lookDir(rob, 0, 0)
                 airis.jump_forward(rob)
 
-            case 'turn 0':
-                airis.lookDir(rob, stats[3], 0)
+            case 'jump 45':
+                airis.lookDir(rob, 0, 45)
+                airis.jump_forward(rob)
 
-            case 'turn 45':
-                airis.lookDir(rob, stats[3], 45)
+            case 'jump 90':
+                airis.lookDir(rob, 0, 90)
+                airis.jump_forward(rob)
 
-            case 'turn 90':
-                airis.lookDir(rob, stats[3], 90)
+            case 'jump 135':
+                airis.lookDir(rob, 0, 135)
+                airis.jump_forward(rob)
 
-            case 'turn 135':
-                airis.lookDir(rob, stats[3], 135)
+            case 'jump 180':
+                airis.lookDir(rob, 0, 180)
+                airis.jump_forward(rob)
 
-            case 'turn 180':
-                airis.lookDir(rob, stats[3], 180)
+            case 'jump 225':
+                airis.lookDir(rob, 0, 225)
+                airis.jump_forward(rob)
 
-            case 'turn 225':
-                airis.lookDir(rob, stats[3], 225)
+            case 'jump 270':
+                airis.lookDir(rob, 0, 270)
+                airis.jump_forward(rob)
 
-            case 'turn 270':
-                airis.lookDir(rob, stats[3], 270)
+            case 'jump 315':
+                airis.lookDir(rob, 0, 315)
+                airis.jump_forward(rob)
 
-            case 'turn 315':
-                airis.lookDir(rob, stats[3], 315)
-
-            case 'mine up':
-                airis.lookDir(rob, -60, stats[4])
+            case 'mine up 0':
+                airis.lookDir(rob, -60, 0)
                 airis.mine(rob)
-                airis.lookDir(rob, 0, stats[4])
+                airis.lookDir(rob, 0, 0)
 
-            case 'mine ceiling':
-                airis.lookDir(rob, -90, stats[4])
+            case 'mine up 45':
+                airis.lookDir(rob, -60, 45)
                 airis.mine(rob)
-                airis.lookDir(rob, 0, stats[4])
+                airis.lookDir(rob, 0, 45)
 
-            case 'mine down':
-                airis.lookDir(rob, 60, stats[4])
+            case 'mine up 90':
+                airis.lookDir(rob, -60, 90)
                 airis.mine(rob)
-                airis.lookDir(rob, 0, stats[4])
+                airis.lookDir(rob, 0, 90)
 
-            case 'mine floor':
-                airis.lookDir(rob, 90, stats[4])
+            case 'mine up 135':
+                airis.lookDir(rob, -60, 135)
                 airis.mine(rob)
-                airis.lookDir(rob, 0, stats[4])
+                airis.lookDir(rob, 0, 135)
 
-            case 'mine straight':
-                airis.lookDir(rob, 0, stats[4])
+            case 'mine up 180':
+                airis.lookDir(rob, -60, 180)
                 airis.mine(rob)
-                airis.lookDir(rob, 0, stats[4])
+                airis.lookDir(rob, 0, 180)
+
+            case 'mine up 225':
+                airis.lookDir(rob, -60, 225)
+                airis.mine(rob)
+                airis.lookDir(rob, 0, 225)
+
+            case 'mine up 270':
+                airis.lookDir(rob, -60, 270)
+                airis.mine(rob)
+                airis.lookDir(rob, 0, 270)
+
+            case 'mine up 315':
+                airis.lookDir(rob, -60, 315)
+                airis.mine(rob)
+                airis.lookDir(rob, 0, 315)
+
+            case 'mine down 0':
+                airis.lookDir(rob, 60, 0)
+                airis.mine(rob)
+                airis.lookDir(rob, 0, 0)
+
+            case 'mine down 45':
+                airis.lookDir(rob, 60, 45)
+                airis.mine(rob)
+                airis.lookDir(rob, 0, 45)
+
+            case 'mine down 90':
+                airis.lookDir(rob, 60, 90)
+                airis.mine(rob)
+                airis.lookDir(rob, 0, 90)
+
+            case 'mine down 135':
+                airis.lookDir(rob, 60, 135)
+                airis.mine(rob)
+                airis.lookDir(rob, 0, 135)
+
+            case 'mine down 180':
+                airis.lookDir(rob, 60, 180)
+                airis.mine(rob)
+                airis.lookDir(rob, 0, 180)
+
+            case 'mine down 225':
+                airis.lookDir(rob, 60, 225)
+                airis.mine(rob)
+                airis.lookDir(rob, 0, 225)
+
+            case 'mine down 270':
+                airis.lookDir(rob, 60, 270)
+                airis.mine(rob)
+                airis.lookDir(rob, 0, 270)
+
+            case 'mine down 315':
+                airis.lookDir(rob, 60, 315)
+                airis.mine(rob)
+                airis.lookDir(rob, 0, 315)
+
+            case 'mine straight 0':
+                airis.lookDir(rob, 0, 0)
+                airis.mine(rob)
+                airis.lookDir(rob, 0, 0)
+
+            case 'mine straight 45':
+                airis.lookDir(rob, 0, 45)
+                airis.mine(rob)
+                airis.lookDir(rob, 0, 45)
+
+            case 'mine straight 90':
+                airis.lookDir(rob, 0, 90)
+                airis.mine(rob)
+                airis.lookDir(rob, 0, 90)
+
+            case 'mine straight 135':
+                airis.lookDir(rob, 0, 135)
+                airis.mine(rob)
+                airis.lookDir(rob, 0, 135)
+
+            case 'mine straight 180':
+                airis.lookDir(rob, 0, 180)
+                airis.mine(rob)
+                airis.lookDir(rob, 0, 180)
+
+            case 'mine straight 225':
+                airis.lookDir(rob, 0, 225)
+                airis.mine(rob)
+                airis.lookDir(rob, 0, 225)
+
+            case 'mine straight 270':
+                airis.lookDir(rob, 0, 270)
+                airis.mine(rob)
+                airis.lookDir(rob, 0, 270)
+
+            case 'mine straight 315':
+                airis.lookDir(rob, 0, 315)
+                airis.mine(rob)
+                airis.lookDir(rob, 0, 315)
 
         stats = [mc.getFullStat(key) for key in fullStatKeys]
         stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), round(stats[4]) % 360]
