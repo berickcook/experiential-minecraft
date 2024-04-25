@@ -195,6 +195,7 @@ class Airis:
                     heapq.heappush(goal_heap, (goal_compare, state_idx, state_confidence, act, state_hash))
                     heapq.heappush(most_confidence_heap, (-state_confidence, state_idx, goal_compare, act, state_hash))
                     heapq.heappush(least_confidence_heap, (state_confidence, state_idx, goal_compare, act, state_hash))
+                    state_hash_set.add(state_hash)
 
             if goal_heap and not goal_reached:
                 if goal_heap[0][0] == 0:
