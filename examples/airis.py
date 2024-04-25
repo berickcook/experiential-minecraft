@@ -166,6 +166,7 @@ class Airis:
         goal_compare = self.compare(0)
         # goal_heap: Compare, State Index, Confidence
         goal_heap = []
+        compare_heap = []
         goal_state = 0
         # confidence_heap: Confidence, State Index, Compare
         most_confidence_heap = []
@@ -193,21 +194,22 @@ class Airis:
                     goal_compare = self.compare(state_idx)
                     state_confidence = self.states[state_idx].confidence
                     heapq.heappush(goal_heap, (goal_compare, state_idx, state_confidence, act, state_hash))
+                    heapq.heappush(compare_heap, (goal_compare, state_idx, state_confidence, act, state_hash))
                     heapq.heappush(most_confidence_heap, (-state_confidence, state_idx, goal_compare, act, state_hash))
                     heapq.heappush(least_confidence_heap, (state_confidence, state_idx, goal_compare, act, state_hash))
                     state_hash_set.add(state_hash)
 
-            if goal_heap and not goal_reached:
-                if goal_heap[0][0] == 0:
+            if compare_heap and not goal_reached:
+                if compare_heap[0][0] == 0:
                     goal_reached = True
-                    goal_state = goal_heap[0][1]
+                    goal_state = compare_heap[0][1]
                     print('Predicted state reaches goal! Trying...')
                     print('Goal State', goal_state)
                     break
 
-                if goal_heap[0][2] == 1:
-                    current_state = goal_heap[0][1]
-                    heapq.heappop(goal_heap)
+                if compare_heap[0][2] == 1:
+                    current_state = compare_heap[0][1]
+                    heapq.heappop(compare_heap)
                 else:
                     if most_confidence_heap[0][0] == -1:
                         current_state = most_confidence_heap[0][1]
@@ -215,19 +217,21 @@ class Airis:
                     else:
                         goal_reached = True
                         goal_found = False
-                        while least_confidence_heap:
-                            data = heapq.heappop(least_confidence_heap)
-                            if data[4] != hash((tuple(self.pos_input), tuple(self.grid_input))):
-                                goal_state = data[1]
-                                goal_found = True
-                                print('Trying least confident prediction')
-                                print('Goal State', goal_state)
-                                break
+                        while goal_heap:
+                            data = heapq.heappop(goal_heap)
+                            if data[2] != 1:
+                                if data[4] != hash((tuple(self.pos_input), tuple(self.grid_input))):
+                                    goal_state = data[1]
+                                    goal_found = True
+                                    print('Trying least confident but closest to goal prediction')
+                                    print('Goal State', goal_state)
+                                    break
 
                         if not goal_found:
-                            goal_state = goal_heap[0][1]
-                            print('Trying best prediction towards goal')
+                            goal_state = least_confidence_heap[0][1]
+                            print('Trying least confident prediction')
                             print('Goal State', goal_state)
+
             if len(self.states) > 550:
                 goal_reached = True
                 goal_found = False
