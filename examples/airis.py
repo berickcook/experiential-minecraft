@@ -431,7 +431,9 @@ class Airis:
 
             o_val = val
 
-            for rule in rules_list:
+            best_diff = None
+
+            for rule in rules_list[::-1]:
                 diff_count = 0
                 total_len = 0
                 # POS
@@ -441,6 +443,10 @@ class Airis:
                     if predict_state.pos_input[i] != self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][i]:
                         diff_count += 1
 
+                if best_diff is not None:
+                    if diff_count > best_diff:
+                        continue
+
                 # GRID
                 condition_set = self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set']
                 total_len += len(condition_set)
@@ -448,9 +454,15 @@ class Airis:
                     if predict_state.grid_input[i] != self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions'][i]:
                         diff_count += 1
 
+                if best_diff is not None:
+                    if diff_count > best_diff:
+                        continue
+
                 updates = self.knowledge['Grid-' + str(idx) + '/' + str(val) + '/' + str(rule) + '/Updates']
                 new_val = self.knowledge['Grid-' + str(idx) + '/' + str(val) + '/' + str(rule) + '/New Value']
                 age = self.knowledge['Grid-' + str(idx) + '/' + str(val) + '/' + str(rule) + '/Age']
+
+                best_diff = diff_count
 
                 if predict_heap['Grid' + str(idx)]:
                     if predict_heap['Grid' + str(idx)][0][0] == diff_count:
@@ -460,6 +472,9 @@ class Airis:
                         heapq.heappush(predict_heap['Grid' + str(idx)], (diff_count, rule, idx, new_val, 'Grid', total_len, updates, age, val))
                 else:
                     heapq.heappush(predict_heap['Grid' + str(idx)], (diff_count, rule, idx, new_val, 'Grid', total_len, updates, age, val))
+
+                if diff_count == 0:
+                    break
 
             # idx_heap = self.predict_all('Grid', idx, val, rules_list, predict_state)
             # # print('Size of Grid idx_heap', len(idx_heap))
