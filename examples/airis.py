@@ -62,10 +62,11 @@ class Airis:
         self.last_compare = None
         self.best_compare = None
         self.actions = ['move 0', 'move 45', 'move 90', 'move 135', 'move 180', 'move 225', 'move 270', 'move 315',
-                        'jump 0', 'jump 45', 'jump 90', 'jump 135', 'jump 180', 'jump 225', 'jump 270', 'jump 315']
-                        # 'mine up 0', 'mine up 45', 'mine up 90', 'mine up 135', 'mine up 180', 'mine up 225', 'mine up 270', 'mine up 315',
+                        'jump 0', 'jump 45', 'jump 90', 'jump 135', 'jump 180', 'jump 225', 'jump 270', 'jump 315',
+                        'mine up 0', 'mine up 45', 'mine up 90', 'mine up 135', 'mine up 180', 'mine up 225', 'mine up 270', 'mine up 315',
+                        'mine straight 0', 'mine straight 45', 'mine straight 90', 'mine straight 135', 'mine straight 180', 'mine straight 225', 'mine straight 270', 'mine straight 315']
                         # 'mine down 0', 'mine down 45', 'mine down 90', 'mine down 135', 'mine down 180', 'mine down 225', 'mine down 270', 'mine down 315',
-                        # 'mine straight 0', 'mine straight 45', 'mine straight 90', 'mine straight 135', 'mine straight 180', 'mine straight 225', 'mine straight 270', 'mine straight 315']
+
 
     def capture_input(self, pos_input, grid_input, action, state, pre):
         if pre:
@@ -220,20 +221,21 @@ class Airis:
                 print('Prediction Correct!')
 
             self.last_compare = self.states[state].compare
-            print('Best Compare', self.best_compare)
+            print('State Goal Compare', self.states[state].compare)
             print('Prediction Flex', self.prediction_flex)
 
             self.prev_last_change_pos = deepcopy(self.last_change_pos)
             self.prev_last_change_grid = deepcopy(self.last_change_grid)
             self.time_step += 1
-            self.state_history.add(hash((tuple(self.pos_input), tuple(self.grid_input), action)))
+            if not clear_plan:
+                self.state_history.add(hash((tuple(self.pos_input), tuple(self.grid_input), action)))
 
     def make_plan(self):
         current_state = 0
         self.action_plan = []
         goal_compare = self.compare(0)
         # goal_heap: Compare, State Index, Confidence
-        goal_heap = []
+        goal_heap = [(goal_compare, 0, 1, None, None)]
         compare_heap = []
         goal_state = 0
         # confidence_heap: Confidence, State Index, Compare
@@ -281,7 +283,7 @@ class Airis:
                     print('Goal State', goal_state)
                     break
 
-                if compare_heap[0][2] >= self.prediction_flex:
+                if compare_heap[0][2] == 1:
                     current_state = compare_heap[0][1]
                     heapq.heappop(compare_heap)
                 else:
@@ -290,43 +292,54 @@ class Airis:
                     #     heapq.heappop(most_confidence_heap)
                     # else:
                     goal_reached = True
-                    goal_found = False
-                    data = heapq.heappop(goal_heap)
-                    low_heap = []
-                    heapq.heappush(low_heap, (data[2], data))
-                    while goal_heap:
-                        while goal_heap[0][0] == data[0]:
-                            low_data = heapq.heappop(goal_heap)
-                            heapq.heappush(low_heap, (low_data[2], low_data))
-                            if not goal_heap:
-                                goal_state = low_heap[0][1][1]
-                                goal_found = True
-                                print('From empty compare heap: Trying lowest confidence prediction closest to goal')
-                                print('Goal State', goal_state)
-                                print('Compare', self.states[goal_state].compare)
-                                break
+                    if least_confidence_heap[0][0] != 1:
+                        goal_state = least_confidence_heap[0][1]
+                    else:
+                        goal_state = goal_heap[0][1]
+                    print('Trying lowest confidence prediction')
+                    #
+                    # while least_confidence_heap[0][2] != goal_heap[0][0]:
+                    #     heapq.heappop(least_confidence_heap)
+                    #
+                    # if least_confidence_heap:
+                    #     goal_state = least_confidence_heap[0][1]
+                    #     print('Trying lowest confidence prediction closest to goal')
+                    # else:
+                    #     print('No low confidence predictions from the closest state!')
+                    #     raise Exception
 
-                        while low_heap[0][1][4] in self.state_history or low_heap[0][1][2] == 1:
-                            heapq.heappop(low_heap)
-                            if not low_heap:
-                                break
+                    # while goal_heap:
+                    #     while goal_heap[0][0] == data[0]:
+                    #         low_data = heapq.heappop(goal_heap)
+                    #         heapq.heappush(low_heap, (low_data[2], low_data))
+                    #         if not goal_heap:
+                    #             goal_state = low_heap[0][1][1]
+                    #             goal_found = True
+                    #             print('From empty compare heap: Trying lowest confidence prediction closest to goal')
+                    #             print('Goal State', goal_state)
+                    #             print('Compare', self.states[goal_state].compare)
+                    #             break
+                    #
+                    #     while low_heap[0][1][4] in self.state_history or low_heap[0][1][2] == 1:
+                    #         heapq.heappop(low_heap)
+                    #         if not low_heap:
+                    #             break
+                    #
+                    #     if low_heap:
+                    #         goal_state = low_heap[0][1][1]
+                    #         goal_found = True
+                    #         print('From compare heap: Trying lowest confidence prediction closest to goal')
+                    #         print('Goal State', goal_state)
+                    #         print('Compare', self.states[goal_state].compare)
+                    #         break
+                    #     else:
+                    #         if goal_heap:
+                    #             data = heapq.heappop(goal_heap)
+                    #             heapq.heappush(low_heap, (data[2], data))
 
-                        if low_heap:
-                            goal_state = low_heap[0][1][1]
-                            goal_found = True
-                            print('From compare heap: Trying lowest confidence prediction closest to goal')
-                            print('Goal State', goal_state)
-                            print('Compare', self.states[goal_state].compare)
-                            break
-                        else:
-                            if goal_heap:
-                                data = heapq.heappop(goal_heap)
-                                heapq.heappush(low_heap, (data[2], data))
-
-                    if not goal_found:
-                        print('Ran out of ideas!')
-                        raise Exception
-                        self.state_history = set()
+                    # if not goal_found:
+                    #     print('Retrying actions that have been tried before to find new low predictions')
+                    #     self.state_history = set()
 
             if len(self.states) > 550:
                 goal_reached = True
@@ -346,7 +359,13 @@ class Airis:
         # self.given_goal = ((0, 65, 0, None, None),())
         for i, c_val in enumerate(self.given_goal[0]):
             if c_val is not None:
-                compare_total += abs(c_val - self.states[state].pos_input[i])
+                if i == 1:
+                    if self.states[state].pos_input[i] < c_val - 1:
+                        compare_total += abs(c_val - self.states[state].pos_input[i]) * 10
+                    else:
+                        compare_total += abs(c_val - self.states[state].pos_input[i])
+                else:
+                    compare_total += abs(c_val - self.states[state].pos_input[i])
 
         return compare_total
 
@@ -809,6 +828,7 @@ class Airis:
         rob.sendCommand('move 0')
         rob.sendCommand('jump 0')
         sleep(.02)
+        rob.sendCommand('jump 0')
         self.lookDir(rob, o_pitch, o_yaw)
         stats = [mc.getFullStat(key) for key in fullStatKeys]
         if [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2])] != [e_pos[0], math.floor(stats[1]), e_pos[2]]:
@@ -866,15 +886,18 @@ class Airis:
         while np.all(self.grid_input == mc.getNearGrid()):
             sleep(0.2)
             timeout += 0.2
-            if timeout > 10:
+            if timeout > 1:
                 break
         rob.sendCommand('attack 0')
         sleep(0.2)
         stats = [mc.getFullStat(key) for key in fullStatKeys]
         while stats != stats_old:
             stats_old = stats
+            timeout += .1
             sleep(0.1)
             stats = [mc.getFullStat(key) for key in fullStatKeys]
+            if timeout > 10:
+                break
 
 
     def save_knowledge(self, fname):
@@ -908,7 +931,7 @@ if __name__ == '__main__':
 
     fullStatKeys = ['XPos', 'YPos', 'ZPos', 'Pitch', 'Yaw']
 
-    sleep(300)
+    sleep(30)
     print('starting!')
 
     airis.lookDir(rob, 0, 0)
