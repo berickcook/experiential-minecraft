@@ -62,9 +62,9 @@ class Airis:
         self.last_compare = None
         self.best_compare = None
         self.actions = ['move 0', 'move 45', 'move 90', 'move 135', 'move 180', 'move 225', 'move 270', 'move 315',
-                        'jump 0', 'jump 45', 'jump 90', 'jump 135', 'jump 180', 'jump 225', 'jump 270', 'jump 315',
-                        'mine up 0', 'mine up 45', 'mine up 90', 'mine up 135', 'mine up 180', 'mine up 225', 'mine up 270', 'mine up 315',
-                        'mine straight 0', 'mine straight 45', 'mine straight 90', 'mine straight 135', 'mine straight 180', 'mine straight 225', 'mine straight 270', 'mine straight 315']
+                        'jump 0', 'jump 45', 'jump 90', 'jump 135', 'jump 180', 'jump 225', 'jump 270', 'jump 315']
+                        # 'mine up 0', 'mine up 45', 'mine up 90', 'mine up 135', 'mine up 180', 'mine up 225', 'mine up 270', 'mine up 315',
+                        # 'mine straight 0', 'mine straight 45', 'mine straight 90', 'mine straight 135', 'mine straight 180', 'mine straight 225', 'mine straight 270', 'mine straight 315']
                         # 'mine down 0', 'mine down 45', 'mine down 90', 'mine down 135', 'mine down 180', 'mine down 225', 'mine down 270', 'mine down 315',
 
 
@@ -192,13 +192,13 @@ class Airis:
             # for key in self.states[state].debug_dict.keys():
             #     print('debug dict', key, self.states[state].debug_dict[key])
 
-            # for index in self.bad_predictions_pos.keys():
-            #     if self.bad_predictions_pos[index][0] == 0:
-            #         self.update_bad_rule(self.bad_predictions_pos[index])
-            #
-            # for index in self.bad_predictions_grid.keys():
-            #     if self.bad_predictions_grid[index][0] == 0:
-            #         self.update_bad_rule(self.bad_predictions_grid[index])
+            for index in self.bad_predictions_pos.keys():
+                if self.bad_predictions_pos[index][0] == 0:
+                    self.update_bad_rule(self.bad_predictions_pos[index])
+
+            for index in self.bad_predictions_grid.keys():
+                if self.bad_predictions_grid[index][0] == 0:
+                    self.update_bad_rule(self.bad_predictions_grid[index])
 
             # print('Prediction State: ', self.states[state])
 
@@ -265,12 +265,14 @@ class Airis:
                     goal_compare = self.compare(state_idx)
                     self.states[state_idx].compare = goal_compare
                     state_confidence = self.states[state_idx].confidence
-                    heapq.heappush(goal_heap, (goal_compare, state_idx, state_confidence, act, state_hash))
+                    if state_confidence == 1:
+                        heapq.heappush(goal_heap, (goal_compare, state_idx, state_confidence, act, state_hash))
                     heapq.heappush(compare_heap, (goal_compare, state_idx, state_confidence, act, state_hash))
                     heapq.heappush(most_confidence_heap, (-state_confidence, state_idx, goal_compare, act, state_hash))
                     heapq.heappush(least_confidence_heap, (state_confidence, state_idx, goal_compare, act, state_hash))
                     state_hash_set.add(state_hash)
                     fresh_state = True
+                    print('Predicting that action', act, 'from state', current_state, 'will result in state', state_idx, 'with a confidence of', state_confidence, self.states[state_idx].confidence_count, '/', self.states[state_idx].confidence_total, 'and a compare of', goal_compare)
 
             if not fresh_state:
                 print('No fresh predictions found from current state', current_state)
@@ -283,20 +285,45 @@ class Airis:
                     print('Goal State', goal_state)
                     break
 
-                if compare_heap[0][2] == 1:
-                    current_state = compare_heap[0][1]
-                    heapq.heappop(compare_heap)
+                if most_confidence_heap[0][0] == -1:
+                    current_state = most_confidence_heap[0][1]
+                    heapq.heappop(most_confidence_heap)
+                    print('Setting new current state of', current_state)
                 else:
-                    # if most_confidence_heap[0][0] == -1:
-                    #     current_state = most_confidence_heap[0][1]
-                    #     heapq.heappop(most_confidence_heap)
-                    # else:
                     goal_reached = True
-                    if least_confidence_heap[0][0] != 1:
+                    goal_found = False
+                    # if least_confidence_heap[0][0] != 1:
+                    #     goal_state = least_confidence_heap[0][1]
+                    # else:
+                    #     goal_state = goal_heap[0][1]
+                    # print('Trying lowest confidence prediction')
+                    print('Best compare is', goal_heap[0][0], 'from state', goal_heap[0][2])
+                    best_compare = goal_heap[0][0]
+                    print('least confidence pre popping', least_confidence_heap)
+                    while goal_heap:
+                        temp_heap = deepcopy(least_confidence_heap)
+                        while temp_heap[0][2] != best_compare and temp_heap[0][2] == 1:
+                            print('least confident compare of', temp_heap[0][2], 'does not match best compare. Popping.')
+                            heapq.heappop(temp_heap)
+                            if not temp_heap:
+                                break
+                        if temp_heap:
+                            goal_state = temp_heap[0][1]
+                            goal_found = True
+                            print('goal state found in temp heap')
+                            break
+                        else:
+                            print('no low confidence predictions from best compare of', best_compare)
+                            heapq.heappop(goal_heap)
+                            best_compare = goal_heap[0][0]
+
+                    if not goal_found:
                         goal_state = least_confidence_heap[0][1]
-                    else:
-                        goal_state = goal_heap[0][1]
-                    print('Trying lowest confidence prediction')
+                        print('goal state set to overall least confident prediction')
+
+                    print('goal state is', goal_state, 'with a confidence of', self.states[goal_state].confidence, self.states[goal_state].confidence_count, '/', self.states[goal_state].confidence_total)
+
+
                     #
                     # while least_confidence_heap[0][2] != goal_heap[0][0]:
                     #     heapq.heappop(least_confidence_heap)
