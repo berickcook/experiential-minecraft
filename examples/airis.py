@@ -192,13 +192,13 @@ class Airis:
             # for key in self.states[state].debug_dict.keys():
             #     print('debug dict', key, self.states[state].debug_dict[key])
 
-            for index in self.bad_predictions_pos.keys():
-                if self.bad_predictions_pos[index][0] == 0:
-                    self.update_bad_rule(self.bad_predictions_pos[index])
-
-            for index in self.bad_predictions_grid.keys():
-                if self.bad_predictions_grid[index][0] == 0:
-                    self.update_bad_rule(self.bad_predictions_grid[index])
+            # for index in self.bad_predictions_pos.keys():
+            #     if self.bad_predictions_pos[index][0] == 0:
+            #         self.update_bad_rule(self.bad_predictions_pos[index])
+            #
+            # for index in self.bad_predictions_grid.keys():
+            #     if self.bad_predictions_grid[index][0] == 0:
+            #         self.update_bad_rule(self.bad_predictions_grid[index])
 
             # print('Prediction State: ', self.states[state])
 
