@@ -212,7 +212,7 @@ class Airis:
             #             self.best_compare = self.states[state].compare
             #             self.prediction_flex = 1
 
-            print('Prediction Confidence: ', self.states[state].confidence)
+            print('Prediction Confidence: ', self.states[state].confidence, self.states[state].confidence_count, '/', self.states[state].confidence_total)
             print('Prediction previous state', self.states[state].prev_state)
             if clear_plan:
                 print('Prediction Incorrect...')
@@ -631,9 +631,25 @@ class Airis:
         conditions_pos_set = set(range(len(self.pos_input)))
         conditions_pos_freq = [1] * len(self.pos_input)
 
+        for i, v in enumerate(self.pos_input):
+            try:
+                if self.applied_rules_pos[i]:
+                    conditions_pos_freq[i] = 0
+                    conditions_pos_set.remove(i)
+            except KeyError:
+                pass
+
         conditions_grid = self.grid_input
         conditions_grid_set = set(range(len(self.grid_input)))
         conditions_grid_freq = [1] * len(self.grid_input)
+
+        for i, v in enumerate(self.grid_input):
+            try:
+                if self.applied_rules_grid[i]:
+                    conditions_grid_freq[i] = 0
+                    conditions_grid_set.remove(i)
+            except KeyError:
+                pass
 
         try:
             check = self.knowledge['Action Rules']

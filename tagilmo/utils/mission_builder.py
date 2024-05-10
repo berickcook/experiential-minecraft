@@ -170,7 +170,7 @@ class Observations:
         self.bNearby = bNearby
         self.bGrid = bGrid
         self.bFindBlock = bFindBlock
-        self.gridNear = [[-5, 5], [-2, 2], [-5, 5]]
+        self.gridNear = [[-2, 2], [-2, 2], [-2, 2]]
         self.gridBig = [[-25, 25], [-25, 25], [-25, 25]]
         self.bChat = bChat
         self.bRecipes = bRecipes
