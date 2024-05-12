@@ -126,6 +126,30 @@ class Airis:
             self.applied_rules_pos = copy.deepcopy(self.states[state].applied_rules_pos)
             self.applied_rules_grid = copy.deepcopy(self.states[state].applied_rules_grid)
 
+            if grid_mismatch:
+                for index in grid_mismatch:
+                    try:
+                        if new_grid_input[index] != self.applied_rules_grid[index][3]:  # Additional check to workaround unknown state value truncation bug??? i.e. 'Andesite' stored as 'Andesit' and causing false mismatch!
+                            clear_plan = True
+                        else:
+                            clear_plan = False
+                            continue
+                    except KeyError:
+                        clear_plan = True
+
+                    print('GRID mismatch - ', index, self.grid_input[index], new_grid_input[index], self.states[state].grid_input[index])
+                    try:
+                        print('GRID Prediction: ', self.applied_rules_grid[index])
+                        print('GRID Predict Heap: ', self.states[state].debug_heap['Grid' + str(index)])
+                        self.bad_predictions_grid[index] = deepcopy(self.applied_rules_grid[index])
+                        del self.applied_rules_grid[index]
+                    except KeyError:
+                        pass
+
+                if clear_plan:
+                    for index in grid_mismatch:
+                        self.create_rule(action, 'Grid', index, self.grid_input[index], new_grid_input[index])
+
             if pos_mismatch:
                 clear_plan = True
                 for index in pos_mismatch:
@@ -141,20 +165,6 @@ class Airis:
                 for index in pos_mismatch:
                     self.create_rule(action, 'Pos', index, self.pos_input[index], new_pos_input[index])
 
-            if grid_mismatch:
-                clear_plan = True
-                for index in grid_mismatch:
-                    print('GRID mismatch - ', index, self.grid_input[index], new_grid_input[index], self.states[state].grid_input[index])
-                    try:
-                        print('GRID Prediction: ', self.applied_rules_grid[index])
-                        print('GRID Predict Heap: ', self.states[state].debug_heap['Grid' + str(index)])
-                        self.bad_predictions_grid[index] = deepcopy(self.applied_rules_grid[index])
-                        del self.applied_rules_grid[index]
-                    except KeyError:
-                        pass
-
-                for index in grid_mismatch:
-                    self.create_rule(action, 'Grid', index, self.grid_input[index], new_grid_input[index])
 
             # (diff_count, rule, idx, new_val, 'Pos', pos_data[2] + grid_data[1], updates, age, idx)
             # self.debug_dict['Pos' + str(idx) + str(rule) + state] = (idx, rule, i, predict_state.pos_input[i]
@@ -368,9 +378,9 @@ class Airis:
                     #     print('Retrying actions that have been tried before to find new low predictions')
                     #     self.state_history = set()
 
-            if len(self.states) > 550:
-                goal_reached = True
-                goal_state = goal_heap[0][1]
+            # if len(self.states) > 550:
+            #     goal_reached = True
+            #     goal_state = goal_heap[0][1]
 
         plan_state = goal_state
         self.action_plan.insert(0, (self.states[plan_state].action, plan_state))
@@ -417,7 +427,9 @@ class Airis:
 
             o_val = idx
 
-            for rule in rules_list:
+            best_diff = None
+
+            for rule in rules_list[::-1]:
                 diff_count = 0
                 total_len = 0
                 # POS
@@ -427,6 +439,10 @@ class Airis:
                     if predict_state.pos_input[i] != self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][i]:
                         diff_count += 1
 
+                if best_diff is not None:
+                    if diff_count > best_diff:
+                        continue
+
                 # GRID
                 condition_set = self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set']
                 total_len += len(condition_set)
@@ -434,9 +450,15 @@ class Airis:
                     if predict_state.grid_input[i] != self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions'][i]:
                         diff_count += 1
 
+                if best_diff is not None:
+                    if diff_count > best_diff:
+                        continue
+
                 updates = self.knowledge['Pos-' + str(idx) + '/' + str(idx) + '/' + str(rule) + '/Updates']
                 new_val = self.knowledge['Pos-' + str(idx) + '/' + str(idx) + '/' + str(rule) + '/New Value']
                 age = self.knowledge['Pos-' + str(idx) + '/' + str(idx) + '/' + str(rule) + '/Age']
+
+                best_diff = diff_count
 
                 if predict_heap['Pos' + str(idx)]:
                     if predict_heap['Pos' + str(idx)][0][0] == diff_count:
@@ -446,6 +468,9 @@ class Airis:
                         heapq.heappush(predict_heap['Pos' + str(idx)], (diff_count, rule, idx, new_val, 'Pos', total_len, updates, age, idx))
                 else:
                     heapq.heappush(predict_heap['Pos' + str(idx)], (diff_count, rule, idx, new_val, 'Pos', total_len, updates, age, idx))
+
+                if diff_count == 0:
+                    break
 
             # while idx_heap:
             #     pos_data = heapq.heappop(idx_heap)
