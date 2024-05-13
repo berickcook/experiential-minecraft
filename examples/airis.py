@@ -129,6 +129,7 @@ class Airis:
             if grid_mismatch:
                 for index in grid_mismatch:
                     try:
+                        print('Double checking against applied rule', new_grid_input[index], self.applied_rules_grid[index][3])
                         if new_grid_input[index] != self.applied_rules_grid[index][3]:  # Additional check to workaround unknown state value truncation bug??? i.e. 'Andesite' stored as 'Andesit' and causing false mismatch!
                             clear_plan = True
                         else:
