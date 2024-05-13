@@ -71,7 +71,7 @@ class Airis:
     def capture_input(self, pos_input, grid_input, action, state, pre):
         if pre:
             self.pos_input = np.asarray([math.floor(pos_input[0]), math.floor(pos_input[1]), math.floor(pos_input[2]), round(pos_input[3]), round(pos_input[4] % 360)])
-            self.grid_input = np.asarray(grid_input)
+            self.grid_input = np.asarray(grid_input, dtype=np.dtype('U100'))
 
             if not self.action_plan:
                 self.states = [State(self.pos_input, self.grid_input, None, 0, 0)]
@@ -96,7 +96,7 @@ class Airis:
 
         else:
             new_pos_input = np.asarray([math.floor(pos_input[0]), math.floor(pos_input[1]), math.floor(pos_input[2]), round(pos_input[3]), round(pos_input[4] % 360)])
-            new_grid_input = np.asarray(grid_input)
+            new_grid_input = np.asarray(grid_input, dtype=np.dtype('U100'))
             clear_plan = False
             self.last_action = action
             self.prev_applied_rules_pos = deepcopy(self.applied_rules_pos)
@@ -126,31 +126,6 @@ class Airis:
             self.applied_rules_pos = copy.deepcopy(self.states[state].applied_rules_pos)
             self.applied_rules_grid = copy.deepcopy(self.states[state].applied_rules_grid)
 
-            if grid_mismatch:
-                for index in grid_mismatch:
-                    try:
-                        print('Double checking against applied rule', new_grid_input[index], self.applied_rules_grid[index][3])
-                        if new_grid_input[index] != self.applied_rules_grid[index][3]:  # Additional check to workaround unknown state value truncation bug??? i.e. 'Andesite' stored as 'Andesit' and causing false mismatch!
-                            clear_plan = True
-                        else:
-                            clear_plan = False
-                            continue
-                    except KeyError:
-                        clear_plan = True
-
-                    print('GRID mismatch - ', index, self.grid_input[index], new_grid_input[index], self.states[state].grid_input[index])
-                    try:
-                        print('GRID Prediction: ', self.applied_rules_grid[index])
-                        print('GRID Predict Heap: ', self.states[state].debug_heap['Grid' + str(index)])
-                        self.bad_predictions_grid[index] = deepcopy(self.applied_rules_grid[index])
-                        del self.applied_rules_grid[index]
-                    except KeyError:
-                        pass
-
-                if clear_plan:
-                    for index in grid_mismatch:
-                        self.create_rule(action, 'Grid', index, self.grid_input[index], new_grid_input[index])
-
             if pos_mismatch:
                 clear_plan = True
                 for index in pos_mismatch:
@@ -166,6 +141,20 @@ class Airis:
                 for index in pos_mismatch:
                     self.create_rule(action, 'Pos', index, self.pos_input[index], new_pos_input[index])
 
+            if grid_mismatch:
+                clear_plan = True
+                for index in grid_mismatch:
+                    print('GRID mismatch - ', index, self.grid_input[index], new_grid_input[index], self.states[state].grid_input[index])
+                    try:
+                        print('GRID Prediction: ', self.applied_rules_grid[index])
+                        print('GRID Predict Heap: ', self.states[state].debug_heap['Grid' + str(index)])
+                        self.bad_predictions_grid[index] = deepcopy(self.applied_rules_grid[index])
+                        del self.applied_rules_grid[index]
+                    except KeyError:
+                        pass
+
+                for index in grid_mismatch:
+                    self.create_rule(action, 'Grid', index, self.grid_input[index], new_grid_input[index])
 
             # (diff_count, rule, idx, new_val, 'Pos', pos_data[2] + grid_data[1], updates, age, idx)
             # self.debug_dict['Pos' + str(idx) + str(rule) + state] = (idx, rule, i, predict_state.pos_input[i]
