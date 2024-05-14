@@ -1,4 +1,3 @@
-import copy
 import logging
 import math
 import heapq
@@ -8,8 +7,9 @@ import tagilmo.utils.mission_builder as mb
 import numpy as np
 import uuid
 
-from copy import deepcopy
+from copy import copy, deepcopy
 from tagilmo.utils.mathutils import normAngle, degree2rad
+
 
 class State:
     def __init__(self, pos_input, grid_input, act, prev, step):
@@ -31,6 +31,7 @@ class State:
         self.debug_heap = None
         self.debug_dict = dict()
 
+
 class Airis:
 
     def __init__(self):
@@ -48,7 +49,7 @@ class Airis:
         self.prev_last_change_pos = set()
         self.prev_last_change_grid = set()
         # self.given_goal = None
-        self.given_goal = ((0, 65, 0, None, None),())
+        self.given_goal = ((0, 65, 0, None, None), ())
         self.goal_achieved = False
         self.applied_rules_pos = dict()
         self.applied_rules_grid = dict()
@@ -61,17 +62,29 @@ class Airis:
         self.prediction_flex = 1
         self.last_compare = None
         self.best_compare = None
+        self.grid_map = np.empty((500, 128, 500), dtype=np.dtype('U42'))
+        self.map_origin_x = 0
+        self.map_origin_y = 0
+        self.map_origin_z = 0
         self.actions = ['move 0', 'move 45', 'move 90', 'move 135', 'move 180', 'move 225', 'move 270', 'move 315',
                         'jump 0', 'jump 45', 'jump 90', 'jump 135', 'jump 180', 'jump 225', 'jump 270', 'jump 315']
-                        # 'mine up 0', 'mine up 45', 'mine up 90', 'mine up 135', 'mine up 180', 'mine up 225', 'mine up 270', 'mine up 315',
-                        # 'mine straight 0', 'mine straight 45', 'mine straight 90', 'mine straight 135', 'mine straight 180', 'mine straight 225', 'mine straight 270', 'mine straight 315']
-                        # 'mine down 0', 'mine down 45', 'mine down 90', 'mine down 135', 'mine down 180', 'mine down 225', 'mine down 270', 'mine down 315',
-
+        # 'mine up 0', 'mine up 45', 'mine up 90', 'mine up 135', 'mine up 180', 'mine up 225', 'mine up 270', 'mine up 315',
+        # 'mine straight 0', 'mine straight 45', 'mine straight 90', 'mine straight 135', 'mine straight 180', 'mine straight 225', 'mine straight 270', 'mine straight 315']
+        # 'mine down 0', 'mine down 45', 'mine down 90', 'mine down 135', 'mine down 180', 'mine down 225', 'mine down 270', 'mine down 315',
 
     def capture_input(self, pos_input, grid_input, action, state, pre):
         if pre:
             self.pos_input = np.asarray([math.floor(pos_input[0]), math.floor(pos_input[1]), math.floor(pos_input[2]), round(pos_input[3]), round(pos_input[4] % 360)])
-            self.grid_input = np.asarray(grid_input)
+            self.grid_input = np.asarray(grid_input, dtype=np.dtype('U42'))
+
+            self.map_origin_x = 2
+            self.map_origin_y = 2
+            self.map_origin_z = 2
+
+            grid_input_3d = self.grid_input.copy()
+            grid_input_3d = grid_input_3d.reshape((5, 5, 5))
+
+            self.grid_map[self.pos_input[0] - self.map_origin_x:self.pos_input[0] + self.map_origin_x + 1, self.pos_input[1] - self.map_origin_y:self.pos_input[1] + self.map_origin_y + 1, self.pos_input[2] - self.map_origin_z:self.pos_input[2] + self.map_origin_z + 1] = grid_input_3d
 
             if not self.action_plan:
                 self.states = [State(self.pos_input, self.grid_input, None, 0, 0)]
@@ -96,7 +109,13 @@ class Airis:
 
         else:
             new_pos_input = np.asarray([math.floor(pos_input[0]), math.floor(pos_input[1]), math.floor(pos_input[2]), round(pos_input[3]), round(pos_input[4] % 360)])
-            new_grid_input = np.asarray(grid_input)
+            new_grid_input = np.asarray(grid_input, dtype=np.dtype('U42'))
+
+            new_grid_3d = new_grid_input.copy()
+            new_grid_3d = new_grid_3d.reshape((5, 5, 5))
+
+            self.grid_map[self.pos_input[0] - self.map_origin_x:self.pos_input[0] + self.map_origin_x + 1, self.pos_input[1] - self.map_origin_y:self.pos_input[1] + self.map_origin_y + 1, self.pos_input[2] - self.map_origin_z:self.pos_input[2] + self.map_origin_z + 1] = new_grid_3d
+
             clear_plan = False
             self.last_action = action
             self.prev_applied_rules_pos = deepcopy(self.applied_rules_pos)
@@ -106,12 +125,6 @@ class Airis:
 
             self.last_change_pos = set()
             self.last_change_grid = set()
-
-            # for i, d, in enumerate(self.pos_input):
-            #     self.last_change_pos.add((i, self.pos_input[i], new_pos_input[i], new_pos_input[i] - self.pos_input[i]))
-            #
-            # for i, d, in enumerate(self.grid_input):
-            #     self.last_change_grid.add((i, self.grid_input[i], new_grid_input[i]))
 
             if np.all(self.pos_input == new_pos_input) and np.all(self.grid_input == new_grid_input) and self.states[state].confidence == 0:
                 # create "no change" rules
@@ -123,33 +136,8 @@ class Airis:
             pos_mismatch = [i for i, v in enumerate(self.states[state].pos_input) if v != new_pos_input[i]]
             grid_mismatch = [i for i, v in enumerate(self.states[state].grid_input) if v != new_grid_input[i]]
 
-            self.applied_rules_pos = copy.deepcopy(self.states[state].applied_rules_pos)
-            self.applied_rules_grid = copy.deepcopy(self.states[state].applied_rules_grid)
-
-            if grid_mismatch:
-                for index in grid_mismatch:
-                    try:
-                        print('Double checking against applied rule', new_grid_input[index], self.applied_rules_grid[index][3])
-                        if new_grid_input[index] != self.applied_rules_grid[index][3]:  # Additional check to workaround unknown state value truncation bug??? i.e. 'Andesite' stored as 'Andesit' and causing false mismatch!
-                            clear_plan = True
-                        else:
-                            clear_plan = False
-                            continue
-                    except KeyError:
-                        clear_plan = True
-
-                    print('GRID mismatch - ', index, self.grid_input[index], new_grid_input[index], self.states[state].grid_input[index])
-                    try:
-                        print('GRID Prediction: ', self.applied_rules_grid[index])
-                        print('GRID Predict Heap: ', self.states[state].debug_heap['Grid' + str(index)])
-                        self.bad_predictions_grid[index] = deepcopy(self.applied_rules_grid[index])
-                        del self.applied_rules_grid[index]
-                    except KeyError:
-                        pass
-
-                if clear_plan:
-                    for index in grid_mismatch:
-                        self.create_rule(action, 'Grid', index, self.grid_input[index], new_grid_input[index])
+            self.applied_rules_pos = deepcopy(self.states[state].applied_rules_pos)
+            self.applied_rules_grid = deepcopy(self.states[state].applied_rules_grid)
 
             if pos_mismatch:
                 clear_plan = True
@@ -166,62 +154,42 @@ class Airis:
                 for index in pos_mismatch:
                     self.create_rule(action, 'Pos', index, self.pos_input[index], new_pos_input[index])
 
+            elif grid_mismatch:
+                clear_plan = True
+                for index in grid_mismatch:
+                    print('GRID mismatch - ', index, self.grid_input[index], new_grid_input[index], self.states[state].grid_input[index])
+                    try:
+                        print('GRID Prediction: ', self.applied_rules_grid[index])
+                        print('GRID Predict Heap: ', self.states[state].debug_heap['Grid' + str(index)])
+                        self.bad_predictions_grid[index] = deepcopy(self.applied_rules_grid[index])
+                        del self.applied_rules_grid[index]
+                    except KeyError:
+                        pass
+
+                for index in grid_mismatch:
+                    self.create_rule(action, 'Grid', index, self.grid_input[index], new_grid_input[index])
 
             # (diff_count, rule, idx, new_val, 'Pos', pos_data[2] + grid_data[1], updates, age, idx)
             # self.debug_dict['Pos' + str(idx) + str(rule) + state] = (idx, rule, i, predict_state.pos_input[i]
 
-            # if clear_plan:
-            #     for i, v in enumerate(self.pos_input):
-            #         self.create_rule(action, 'Pos', i, self.pos_input[i], new_pos_input[i])
-            #     for i, v in enumerate(self.grid_input):
-            #         self.create_rule(action, 'Grid', i, self.grid_input[i], new_grid_input[i])
-
             for index in self.applied_rules_pos.keys():
-                # print('Applied POS Rule', index, self.applied_rules_pos[index])
-                # try:
-                #     print('Best Rule POS condition difference for state', state, self.states[state].debug_dict['Pos'+str(self.applied_rules_pos[index][2])+str(self.applied_rules_pos[index][1])])
-                # except KeyError:
-                #     pass
                 self.update_good_rule(self.applied_rules_pos[index])
-                # print('Applied POS rule diff', index, [self.applied_rules_pos[index][0]])
-                # if self.applied_rules_pos[index][0] != 0:
-                #     print('Creating new rule for POS diff')
-                #     self.create_rule(action, 'Pos', index, self.pos_input[index], new_pos_input[index])
 
             for index in self.applied_rules_grid.keys():
-                # print('Applied GRID Rule', index, self.applied_rules_grid[index])
-                # try:
-                #     print('Best Rule GRID condition difference for state', state, self.states[state].debug_dict['Grid'+str(self.applied_rules_grid[index][2])+str(self.applied_rules_grid[index][1])])
-                # except KeyError:
-                #     pass
                 self.update_good_rule(self.applied_rules_grid[index])
-                # print('Applied GRID rule diff', index, [self.applied_rules_grid[index][0]])
-                # if self.applied_rules_grid[index][0] != 0:
-                #     print('Creating new rule for GRID diff')
-                #     self.create_rule(action, 'Grid', index, self.grid_input[index], new_grid_input[index])
 
             # for key in self.states[state].debug_dict.keys():
             #     print('debug dict', key, self.states[state].debug_dict[key])
 
-            # for index in self.bad_predictions_pos.keys():
-            #     if self.bad_predictions_pos[index][0] == 0:
-            #         self.update_bad_rule(self.bad_predictions_pos[index])
-            #
-            # for index in self.bad_predictions_grid.keys():
-            #     if self.bad_predictions_grid[index][0] == 0:
-            #         self.update_bad_rule(self.bad_predictions_grid[index])
+            for index in self.bad_predictions_pos.keys():
+                if self.bad_predictions_pos[index][0] == 0:
+                    self.update_bad_rule(self.bad_predictions_pos[index])
+
+            for index in self.bad_predictions_grid.keys():
+                if self.bad_predictions_grid[index][0] == 0:
+                    self.update_bad_rule(self.bad_predictions_grid[index])
 
             # print('Prediction State: ', self.states[state])
-
-            # if self.last_compare is not None:
-            #     if self.best_compare is None:
-            #         self.best_compare = self.last_compare
-            #     else:
-            #         if self.states[state].compare >= self.best_compare:
-            #             self.prediction_flex = .8
-            #         else:
-            #             self.best_compare = self.states[state].compare
-            #             self.prediction_flex = 1
 
             print('Prediction Confidence: ', self.states[state].confidence, self.states[state].confidence_count, '/', self.states[state].confidence_total)
             print('Prediction previous state', self.states[state].prev_state)
@@ -233,7 +201,6 @@ class Airis:
 
             self.last_compare = self.states[state].compare
             print('State Goal Compare', self.states[state].compare)
-            print('Prediction Flex', self.prediction_flex)
 
             self.prev_last_change_pos = deepcopy(self.last_change_pos)
             self.prev_last_change_grid = deepcopy(self.last_change_grid)
@@ -303,11 +270,7 @@ class Airis:
                 else:
                     goal_reached = True
                     goal_found = False
-                    # if least_confidence_heap[0][0] != 1:
-                    #     goal_state = least_confidence_heap[0][1]
-                    # else:
-                    #     goal_state = goal_heap[0][1]
-                    # print('Trying lowest confidence prediction')
+
                     print('Best compare is', goal_heap[0][0], 'from state', goal_heap[0][2])
                     best_compare = goal_heap[0][0]
                     print('least confidence pre popping', least_confidence_heap)
@@ -333,51 +296,6 @@ class Airis:
                         print('goal state set to overall least confident prediction')
 
                     print('goal state is', goal_state, 'with a confidence of', self.states[goal_state].confidence, self.states[goal_state].confidence_count, '/', self.states[goal_state].confidence_total)
-
-
-                    #
-                    # while least_confidence_heap[0][2] != goal_heap[0][0]:
-                    #     heapq.heappop(least_confidence_heap)
-                    #
-                    # if least_confidence_heap:
-                    #     goal_state = least_confidence_heap[0][1]
-                    #     print('Trying lowest confidence prediction closest to goal')
-                    # else:
-                    #     print('No low confidence predictions from the closest state!')
-                    #     raise Exception
-
-                    # while goal_heap:
-                    #     while goal_heap[0][0] == data[0]:
-                    #         low_data = heapq.heappop(goal_heap)
-                    #         heapq.heappush(low_heap, (low_data[2], low_data))
-                    #         if not goal_heap:
-                    #             goal_state = low_heap[0][1][1]
-                    #             goal_found = True
-                    #             print('From empty compare heap: Trying lowest confidence prediction closest to goal')
-                    #             print('Goal State', goal_state)
-                    #             print('Compare', self.states[goal_state].compare)
-                    #             break
-                    #
-                    #     while low_heap[0][1][4] in self.state_history or low_heap[0][1][2] == 1:
-                    #         heapq.heappop(low_heap)
-                    #         if not low_heap:
-                    #             break
-                    #
-                    #     if low_heap:
-                    #         goal_state = low_heap[0][1][1]
-                    #         goal_found = True
-                    #         print('From compare heap: Trying lowest confidence prediction closest to goal')
-                    #         print('Goal State', goal_state)
-                    #         print('Compare', self.states[goal_state].compare)
-                    #         break
-                    #     else:
-                    #         if goal_heap:
-                    #             data = heapq.heappop(goal_heap)
-                    #             heapq.heappush(low_heap, (data[2], data))
-
-                    # if not goal_found:
-                    #     print('Retrying actions that have been tried before to find new low predictions')
-                    #     self.state_history = set()
 
             # if len(self.states) > 550:
             #     goal_reached = True
@@ -473,25 +391,6 @@ class Airis:
                 if diff_count == 0:
                     break
 
-            # while idx_heap:
-            #     pos_data = heapq.heappop(idx_heap)
-            #     diff_count = pos_data[0]
-            #     rule = pos_data[1]
-            #     updates = self.knowledge['Pos-' + str(idx) + '/' + str(idx) + '/' + str(rule) + '/Updates']
-            #     new_val = self.knowledge['Pos-' + str(idx) + '/' + str(idx) + '/' + str(rule) + '/New Value']
-            #     age = self.knowledge['Pos-' + str(idx) + '/' + str(idx) + '/' + str(rule) + '/Age']
-            #
-            #     if predict_heap['Pos' + str(idx)]:
-            #         if predict_heap['Pos' + str(idx)][0][0] == diff_count:
-            #             if age > predict_heap['Pos' + str(idx)][0][7]:
-            #                 heapq.heapreplace(predict_heap['Pos' + str(idx)], (diff_count, rule, idx, new_val, 'Pos', pos_data[2], updates, age, idx))
-            #         else:
-            #             heapq.heappush(predict_heap['Pos' + str(idx)], (diff_count, rule, idx, new_val, 'Pos', pos_data[2], updates, age, idx))
-            #     else:
-            #         heapq.heappush(predict_heap['Pos' + str(idx)], (diff_count, rule, idx, new_val, 'Pos', pos_data[2], updates, age, idx))
-            #     # if diff_count == 0:
-            #     #     break
-
         # Evaluate grid input
         for idx, val in enumerate(predict_state.grid_input):
             predict_heap['Grid' + str(idx)] = []
@@ -548,27 +447,7 @@ class Airis:
                 if diff_count == 0:
                     break
 
-            # idx_heap = self.predict_all('Grid', idx, val, rules_list, predict_state)
-            # # print('Size of Grid idx_heap', len(idx_heap))
-            #
-            # while idx_heap:
-            #     pos_data = heapq.heappop(idx_heap)
-            #     diff_count = pos_data[0]
-            #     rule = pos_data[1]
-            #     updates = self.knowledge['Grid-' + str(idx) + '/' + str(val) + '/' + str(rule) + '/Updates']
-            #     new_val = self.knowledge['Grid-' + str(idx) + '/' + str(val) + '/' + str(rule) + '/New Value']
-            #     age = self.knowledge['Grid-' + str(idx) + '/' + str(val) + '/' + str(rule) + '/Age']
-            #
-            #     if predict_heap['Grid' + str(idx)]:
-            #         if predict_heap['Grid' + str(idx)][0][0] == diff_count:
-            #             if age > predict_heap['Grid' + str(idx)][0][7]:
-            #                 heapq.heapreplace(predict_heap['Grid' + str(idx)], (diff_count, rule, idx, new_val, 'Grid', pos_data[2], updates, age, val))
-            #         else:
-            #             heapq.heappush(predict_heap['Grid' + str(idx)], (diff_count, rule, idx, new_val, 'Grid', pos_data[2], updates, age, val))
-            #     else:
-            #         heapq.heappush(predict_heap['Grid' + str(idx)], (diff_count, rule, idx, new_val, 'Grid', pos_data[2], updates, age, val))
-            #     # if diff_count == 0:
-            #     #     break
+        grid_changes = []
 
         # Apply changes to predict state
         for idx_key in predict_heap.keys():
@@ -585,7 +464,8 @@ class Airis:
                     #     except KeyError:
                     #         pass
                 elif predict_heap[idx_key][0][4] == 'Grid':
-                    predict_state.grid_input[predict_heap[idx_key][0][2]] = predict_heap[idx_key][0][3]
+                    grid_changes.append((predict_heap[idx_key][0][2], predict_heap[idx_key][0][3]))
+                    # predict_state.grid_input[predict_heap[idx_key][0][2]] = predict_heap[idx_key][0][3]
                     predict_state.applied_rules_grid[predict_heap[idx_key][0][2]] = predict_heap[idx_key][0]
                     # if predict_heap[idx_key][0][0] != 0:
                     #     try:
@@ -596,6 +476,13 @@ class Airis:
                 confidence_count += predict_heap[idx_key][0][5] - predict_heap[idx_key][0][0]
             else:
                 pass
+
+        predict_state.grid_input = self.grid_map[predict_state.pos_input[0] - self.map_origin_x:predict_state.pos_input[0] + self.map_origin_x + 1, predict_state.pos_input[1] - self.map_origin_y:predict_state.pos_input[1] + self.map_origin_y + 1, predict_state.pos_input[2] - self.map_origin_z:predict_state.pos_input[2] + self.map_origin_z + 1]
+
+        predict_state.grid_input = predict_state.grid_input.flatten()
+
+        for item in grid_changes:
+            predict_state.grid_input[item[0]] = item[1]
 
         predict_state.debug_heap = deepcopy(predict_heap)
 
@@ -608,73 +495,6 @@ class Airis:
 
         return predict_state
 
-    # def predict_all(self, t, idx, val, rules_list, predict_state):
-    #     idx_rule_heap = []
-    #     o_val = None
-    #     if t == 'Pos':
-    #         o_val = idx
-    #     elif t == 'Grid':
-    #         o_val = val
-    #
-    #     for rule in rules_list:
-    #         diff_count = 0
-    #         total_len = 0
-    #         # POS
-    #         condition_set = self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Set']
-    #         total_len += len(condition_set)
-    #         for i in condition_set:
-    #             if predict_state.pos_input[i] != self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][i]:
-    #                 diff_count += 1
-    #
-    #         # GRID
-    #         condition_set = self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set']
-    #         total_len += len(condition_set)
-    #         for i in condition_set:
-    #             if predict_state.grid_input[i] != self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions'][i]:
-    #                 diff_count += 1
-    #
-    #         heapq.heappush(idx_rule_heap, (diff_count, rule, total_len))
-    #
-    #     return idx_rule_heap
-
-    # def predict_pos_conditions(self, t, idx, val, rules_list, predict_state):
-    #     idx_rule_heap = []
-    #     o_val = None
-    #     if t == 'Pos':
-    #         o_val = idx
-    #     elif t == 'Grid':
-    #         o_val = val
-    #
-    #     for rule in rules_list:
-    #         diff_count = 0
-    #         condition_set = self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Set']
-    #         for i in condition_set:
-    #             if predict_state.pos_input[i] != self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][i]:
-    #                 diff_count += 1
-    #                 # predict_state.debug_dict['Pos'+str(idx)+str(rule)] = (idx, rule, i, predict_state.pos_input[i], self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][i])
-    #
-    #         heapq.heappush(idx_rule_heap, (diff_count, rule, len(condition_set)))
-    #         # if diff_count == 0:
-    #         #     break
-    #
-    #     return idx_rule_heap
-    #
-    # def predict_grid_conditions(self, t, idx, val, rule, predict_state):
-    #     o_val = None
-    #     if t == 'Pos':
-    #         o_val = idx
-    #     elif t == 'Grid':
-    #         o_val = val
-    #
-    #     diff_count = 0
-    #     condition_set = self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set']
-    #     for i in condition_set:
-    #         if predict_state.grid_input[i] != self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions'][i]:
-    #             diff_count += 1
-    #             # predict_state.debug_dict['Grid'+str(idx)+str(rule)] = (idx, rule, i, predict_state.grid_input[i], self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions'][i])
-    #
-    #     return diff_count, len(condition_set)
-            
     def create_rule(self, act, input_type, index, pre_val, post_val):
         new_rule = str(uuid.uuid4())[:6]
         o_val = None
@@ -897,7 +717,6 @@ class Airis:
         rob.sendCommand('move 0')
         rob.sendCommand('jump 0')
         sleep(.02)
-        rob.sendCommand('jump 0')
         self.lookDir(rob, o_pitch, o_yaw)
         stats = [mc.getFullStat(key) for key in fullStatKeys]
         if [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2])] != [e_pos[0], math.floor(stats[1]), e_pos[2]]:
@@ -968,7 +787,6 @@ class Airis:
             if timeout > 10:
                 break
 
-
     def save_knowledge(self, fname):
         np.save(fname, self.knowledge)
 
@@ -977,6 +795,7 @@ class Airis:
             self.knowledge = np.load(fname, allow_pickle=True).item()
         except FileNotFoundError:
             self.knowledge = dict()
+
 
 if __name__ == '__main__':
 
@@ -1006,7 +825,7 @@ if __name__ == '__main__':
     airis.lookDir(rob, 0, 0)
 
     stats = [mc.getFullStat(key) for key in fullStatKeys]
-    stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), 0]#round(stats[4]) % 360]
+    stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), 0]  # round(stats[4]) % 360]
     grid = mc.getNearGrid()
 
     while not airis.goal_achieved:
@@ -1204,11 +1023,10 @@ if __name__ == '__main__':
                 airis.lookDir(rob, 0, 315)
 
         stats = [mc.getFullStat(key) for key in fullStatKeys]
-        stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), 0]#round(stats[4]) % 360]
+        stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), 0]  # round(stats[4]) % 360]
         grid = mc.getNearGrid()
         airis.capture_input(stats, grid, action, state, False)
         print('Current Stats', stats)
         airis.save_knowledge('Knowledge.npy')
-
 
     print('Test Routine Complete')
