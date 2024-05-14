@@ -156,10 +156,16 @@ class Airis:
                     try:
                         while self.states[state].all_rules_pos[index]:
                             data = heapq.heappop(self.states[state].all_rules_pos[index])
-                            if data[3] == new_pos_input[index]:
-                                found = True
-                                self.applied_rules_pos[index] = data
-                                break
+                            if index <= 2:
+                                if self.pos_input[index] + data[3] == new_pos_input[index]:
+                                    found = True
+                                    self.applied_rules_pos[index] = data
+                                    break
+                            else:
+                                if data[3] == new_pos_input[index]:
+                                    found = True
+                                    self.applied_rules_pos[index] = data
+                                    break
                     except KeyError:
                         pass
 
