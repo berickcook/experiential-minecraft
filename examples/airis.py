@@ -21,9 +21,9 @@ class State:
         self.change_grid = []
         self.step = step
         self.applied_rules_pos = dict()
-        self.applied_rule_ids_pos = dict()
+        self.all_rules_pos = dict()
         self.applied_rules_grid = dict()
-        self.applied_rule_ids_grid = dict()
+        self.all_rules_grid = dict()
         self.compare = None
         self.confidence = None
         self.confidence_count = None
@@ -152,7 +152,19 @@ class Airis:
                         pass
 
                 for index in pos_mismatch:
-                    self.create_rule(action, 'Pos', index, self.pos_input[index], new_pos_input[index])
+                    found = False
+                    try:
+                        while self.states[state].all_rules_pos[index]:
+                            data = heapq.heappop(self.states[state].all_rules_pos[index])
+                            if data[3] == new_pos_input[index]:
+                                found = True
+                                self.applied_rules_pos[index] = data
+                                break
+                    except KeyError:
+                        pass
+
+                    if not found:
+                        self.create_rule(action, 'Pos', index, self.pos_input[index], new_pos_input[index])
 
             elif grid_mismatch:
                 clear_plan = True
@@ -167,7 +179,19 @@ class Airis:
                         pass
 
                 for index in grid_mismatch:
-                    self.create_rule(action, 'Grid', index, self.grid_input[index], new_grid_input[index])
+                    found = False
+                    try:
+                        while self.states[state].all_rules_grid[index]:
+                            data = heapq.heappop(self.states[state].all_rules_grid[index])
+                            if data[3] == new_grid_input[index]:
+                                found = True
+                                self.applied_rules_pos[index] = data
+                                break
+                    except KeyError:
+                        pass
+
+                    if not found:
+                        self.create_rule(action, 'Grid', index, self.grid_input[index], new_grid_input[index])
 
             # (diff_count, rule, idx, new_val, 'Pos', pos_data[2] + grid_data[1], updates, age, idx)
             # self.debug_dict['Pos' + str(idx) + str(rule) + state] = (idx, rule, i, predict_state.pos_input[i]
@@ -458,6 +482,7 @@ class Airis:
                     else:
                         predict_state.pos_input[predict_heap[idx_key][0][2]] = predict_heap[idx_key][0][3]
                     predict_state.applied_rules_pos[predict_heap[idx_key][0][2]] = predict_heap[idx_key][0]
+                    predict_state.all_rules_pos[predict_heap[idx_key][0][2]] = predict_heap[idx_key]
                     # if predict_heap[idx_key][0][0] != 0:
                     #     try:
                     #         print('Best Rule POS condition difference for state', predict_state, self.debug_dict['Pos'+str(predict_heap[idx_key][0][2])+str(predict_heap[idx_key][0][1])])
@@ -467,6 +492,7 @@ class Airis:
                     grid_changes.append((predict_heap[idx_key][0][2], predict_heap[idx_key][0][3]))
                     # predict_state.grid_input[predict_heap[idx_key][0][2]] = predict_heap[idx_key][0][3]
                     predict_state.applied_rules_grid[predict_heap[idx_key][0][2]] = predict_heap[idx_key][0]
+                    predict_state.all_rules_grid[predict_heap[idx_key][0][2]] = predict_heap[idx_key]
                     # if predict_heap[idx_key][0][0] != 0:
                     #     try:
                     #         print('Best Rule GRID condition difference for state', predict_state, self.debug_dict['Grid'+str(predict_heap[idx_key][0][2])+str(predict_heap[idx_key][0][1])])
