@@ -62,10 +62,14 @@ class Airis:
         self.prediction_flex = 1
         self.last_compare = None
         self.best_compare = None
-        self.grid_map = np.empty((128, 500, 500), dtype=np.dtype('U42'))
-        self.map_origin_x = 0
-        self.map_origin_y = 0
-        self.map_origin_z = 0
+        self.grid_map = np.empty((256, 500, 500), dtype=np.dtype('U42'))
+        self.grid_origin_x = 2
+        self.grid_origin_y = 2
+        self.grid_origin_z = 2
+        self.map_origin_x = 250
+        self.map_origin_y = 128
+        self.map_origin_z = 250
+        
         self.actions = ['move 0', 'move 45', 'move 90', 'move 135', 'move 180', 'move 225', 'move 270', 'move 315',
                         'jump 0', 'jump 45', 'jump 90', 'jump 135', 'jump 180', 'jump 225', 'jump 270', 'jump 315']
         # 'mine up 0', 'mine up 45', 'mine up 90', 'mine up 135', 'mine up 180', 'mine up 225', 'mine up 270', 'mine up 315',
@@ -77,26 +81,17 @@ class Airis:
             self.pos_input = np.asarray([(math.floor(pos_input[0]), math.floor(pos_input[1]), math.floor(pos_input[2]))])
             self.grid_input = np.asarray(grid_input, dtype=np.dtype('U42'))
 
-            self.map_origin_x = 2
-            self.map_origin_y = 2
-            self.map_origin_z = 2
-
             grid_input_3d = self.grid_input.copy()
             grid_input_3d = grid_input_3d.reshape((5, 5, 5))
 
-            # pre = self.grid_map[self.pos_input[0][1] - self.map_origin_y:self.pos_input[0][1] + self.map_origin_y + 1, self.pos_input[0][2] - self.map_origin_z:self.pos_input[0][2] + self.map_origin_z + 1, self.pos_input[0][0] - self.map_origin_x:self.pos_input[0][0] + self.map_origin_x + 1].copy()
-
-
             # print('Position', self.pos_input)
-            # print('Grid Calculation: x', self.pos_input[0][0] - self.map_origin_x, self.pos_input[0][0] + self.map_origin_x + 1)
-            # print('Grid Calculation: y', self.pos_input[0][1] - self.map_origin_y, self.pos_input[0][1] + self.map_origin_y + 1)
-            # print('Grid Calculation: z', self.pos_input[0][2] - self.map_origin_z, self.pos_input[0][2] + self.map_origin_z + 1)
+            # print('Grid Calculation: x', self.pos_input[0][0] - self.grid_origin_x, self.pos_input[0][0] + self.grid_origin_x + 1)
+            # print('Grid Calculation: y', self.pos_input[0][1] - self.grid_origin_y, self.pos_input[0][1] + self.grid_origin_y + 1)
+            # print('Grid Calculation: z', self.pos_input[0][2] - self.grid_origin_z, self.pos_input[0][2] + self.grid_origin_z + 1)
             # print('Input', grid_input_3d)
             # print('Map pre', pre)
 
-            self.grid_map[self.pos_input[0][1] - self.map_origin_y:self.pos_input[0][1] + self.map_origin_y + 1, self.pos_input[0][2] - self.map_origin_z:self.pos_input[0][2] + self.map_origin_z + 1, self.pos_input[0][0] - self.map_origin_x:self.pos_input[0][0] + self.map_origin_x + 1] = grid_input_3d
-
-            # post = self.grid_map[self.pos_input[0][1] - self.map_origin_y:self.pos_input[0][1] + self.map_origin_y + 1, self.pos_input[0][2] - self.map_origin_x:self.pos_input[0][2] + self.map_origin_x + 1, self.pos_input[0][0] - self.map_origin_z:self.pos_input[0][0] + self.map_origin_z + 1].copy()
+            self.grid_map[self.map_origin_y + self.pos_input[0][1] - self.grid_origin_y:self.map_origin_y + self.pos_input[0][1] + self.grid_origin_y + 1, self.map_origin_z + self.pos_input[0][2] - self.grid_origin_z:self.map_origin_z + self.pos_input[0][2] + self.grid_origin_z + 1, self.map_origin_x + self.pos_input[0][0] - self.grid_origin_x:self.map_origin_x + self.pos_input[0][0] + self.grid_origin_x + 1] = grid_input_3d
 
             # print('Map Post', post)
 
@@ -136,11 +131,8 @@ class Airis:
             new_grid_3d = new_grid_input.copy()
             new_grid_3d = new_grid_3d.reshape((5, 5, 5))
             # print('new pos', new_pos_input)
-            # print('Map Pre', self.grid_map[new_pos_input[0][1] - self.map_origin_y:new_pos_input[0][1] + self.map_origin_y + 1, new_pos_input[0][2] - self.map_origin_x:new_pos_input[0][2] + self.map_origin_x + 1, new_pos_input[0][0] - self.map_origin_z:new_pos_input[0][0] + self.map_origin_z + 1])
 
-            self.grid_map[new_pos_input[0][1] - self.map_origin_y:new_pos_input[0][1] + self.map_origin_y + 1, new_pos_input[0][2] - self.map_origin_z:new_pos_input[0][2] + self.map_origin_z + 1, new_pos_input[0][0] - self.map_origin_x:new_pos_input[0][0] + self.map_origin_x + 1] = new_grid_3d
-
-            # print('Map Post', self.grid_map[new_pos_input[0][1] - self.map_origin_y:new_pos_input[0][1] + self.map_origin_y + 1, new_pos_input[0][2] - self.map_origin_x:new_pos_input[0][2] + self.map_origin_x + 1, new_pos_input[0][0] - self.map_origin_z:new_pos_input[0][0] + self.map_origin_z + 1])
+            self.grid_map[self.map_origin_y + new_pos_input[0][1] - self.grid_origin_y:self.map_origin_y + new_pos_input[0][1] + self.grid_origin_y + 1, self.map_origin_z + new_pos_input[0][2] - self.grid_origin_z:self.map_origin_z + new_pos_input[0][2] + self.grid_origin_z + 1, self.map_origin_x + new_pos_input[0][0] - self.grid_origin_x:self.map_origin_x + new_pos_input[0][0] + self.grid_origin_x + 1] = new_grid_3d
 
             clear_plan = False
             self.last_action = action
@@ -255,13 +247,11 @@ class Airis:
             # for key in self.states[state].debug_dict.keys():
             #     print('debug dict', key, self.states[state].debug_dict[key])
 
-            # for index in self.bad_predictions_pos.keys():
-            #     if self.bad_predictions_pos[index][0] == 0:
-            #         self.update_bad_rule(self.bad_predictions_pos[index])
-            #
-            # for index in self.bad_predictions_grid.keys():
-            #     if self.bad_predictions_grid[index][0] == 0:
-            #         self.update_bad_rule(self.bad_predictions_grid[index])
+            for index in self.bad_predictions_pos.keys():
+                self.update_bad_rule(self.bad_predictions_pos[index])
+
+            for index in self.bad_predictions_grid.keys():
+                self.update_bad_rule(self.bad_predictions_grid[index])
 
             # print('Prediction State: ', self.states[state])
 
@@ -272,6 +262,8 @@ class Airis:
                 self.action_plan = []
             else:
                 print('Prediction Correct!')
+
+            print('Calculated ', len(self.states), 'to make this plan')
             #
             # print('Actual Input', new_pos_input)
             # print('Actual Input', new_grid_input)
@@ -304,10 +296,16 @@ class Airis:
         goal_reached = False
         if goal_compare == 0:
             goal_reached = True
+        step = 0
 
         while not goal_reached:
             fresh_state = False
+            step += 1
             for act in self.actions:
+                if 'jump' in act:
+                    discount = 0
+                else:
+                    discount = 0
                 try:
                     check = self.knowledge['Action Rules'][act]
                 except KeyError:
@@ -325,16 +323,16 @@ class Airis:
                     self.states[state_idx].compare = goal_compare
                     state_confidence = self.states[state_idx].confidence
                     if state_confidence == 1:
-                        heapq.heappush(goal_heap, (goal_compare, state_idx, state_confidence, act, state_hash))
-                    heapq.heappush(compare_heap, (goal_compare, state_idx, state_confidence, act, state_hash))
-                    heapq.heappush(most_confidence_heap, (-state_confidence, state_idx, goal_compare, act, state_hash))
-                    heapq.heappush(least_confidence_heap, (state_confidence, state_idx, goal_compare, act, state_hash))
+                        heapq.heappush(goal_heap, (goal_compare + discount, state_idx, state_confidence, act, state_hash))
+                    heapq.heappush(compare_heap, (goal_compare + discount, state_idx, state_confidence, act, state_hash))
+                    heapq.heappush(most_confidence_heap, (-state_confidence, state_idx, goal_compare + discount, act, state_hash))
+                    heapq.heappush(least_confidence_heap, (state_confidence, state_idx, goal_compare + discount, act, state_hash))
                     state_hash_set.add(state_hash)
                     fresh_state = True
-                    print('Predicting that action', act, 'from state', current_state, 'will result in state', state_idx, 'with a confidence of', state_confidence, self.states[state_idx].confidence_count, '/', self.states[state_idx].confidence_total, 'and a compare of', goal_compare)
-
-            if not fresh_state:
-                print('No fresh predictions found from current state', current_state)
+            #         print('Predicting that action', act, 'from state', current_state, 'will result in state', state_idx, 'with a confidence of', state_confidence, self.states[state_idx].confidence_count, '/', self.states[state_idx].confidence_total, 'and a compare of', goal_compare)
+            #
+            # if not fresh_state:
+            #     print('No fresh predictions found from current state', current_state)
 
             if compare_heap and not goal_reached:
                 if compare_heap[0][0] == 0:
@@ -347,7 +345,7 @@ class Airis:
                 if most_confidence_heap[0][0] == -1:
                     current_state = most_confidence_heap[0][1]
                     heapq.heappop(most_confidence_heap)
-                    print('Setting new current state of', current_state)
+                    # print('Setting new current state of', current_state)
                 else:
                     goal_reached = True
                     goal_found = False
@@ -357,7 +355,7 @@ class Airis:
                     print('least confidence pre popping', least_confidence_heap)
                     while goal_heap:
                         temp_heap = deepcopy(least_confidence_heap)
-                        while temp_heap[0][2] != best_compare and temp_heap[0][2] == 1:
+                        while temp_heap[0][2] > best_compare or temp_heap[0][0] == 1:
                             print('least confident compare of', temp_heap[0][2], 'does not match best compare. Popping.')
                             heapq.heappop(temp_heap)
                             if not temp_heap:
@@ -370,7 +368,10 @@ class Airis:
                         else:
                             print('no low confidence predictions from best compare of', best_compare)
                             heapq.heappop(goal_heap)
-                            best_compare = goal_heap[0][0]
+                            if goal_heap:
+                                best_compare = goal_heap[0][0]
+                            else:
+                                break
 
                     if not goal_found:
                         goal_state = least_confidence_heap[0][1]
@@ -579,7 +580,7 @@ class Airis:
             else:
                 pass
 
-        predict_state.grid_input = self.grid_map[predict_state.pos_input[0][1] - self.map_origin_y:predict_state.pos_input[0][1] + self.map_origin_y + 1, predict_state.pos_input[0][2] - self.map_origin_z:predict_state.pos_input[0][2] + self.map_origin_z + 1, predict_state.pos_input[0][0] - self.map_origin_x:predict_state.pos_input[0][0] + self.map_origin_x + 1]
+        predict_state.grid_input = self.grid_map[self.map_origin_y + predict_state.pos_input[0][1] - self.grid_origin_y:self.map_origin_y + predict_state.pos_input[0][1] + self.grid_origin_y + 1, self.map_origin_z + predict_state.pos_input[0][2] - self.grid_origin_z:self.map_origin_z + predict_state.pos_input[0][2] + self.grid_origin_z + 1, self.map_origin_x + predict_state.pos_input[0][0] - self.grid_origin_x:self.map_origin_x + predict_state.pos_input[0][0] + self.grid_origin_x + 1]
 
         # np.flip(predict_state.grid_input, axis=0)
 
