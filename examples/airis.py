@@ -720,10 +720,14 @@ class Airis:
         pos_add_list = []
         grid_add_list = []
 
-        for u_idx, val in enumerate(self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][0]):
-            if self.pos_input[0][u_idx] == val:
-                self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Freq'][0][u_idx] = 1
-                pos_add_list.append(u_idx)
+        # for u_idx, val in enumerate(self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][0]):
+        #     if self.pos_input[0][u_idx] == val:
+        #         self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Freq'][0] = 1
+        #         pos_add_list.append(u_idx)
+
+        if np.all(self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][0] == self.pos_input[0]):
+            self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Freq'][0] = 1
+            pos_add_list.append(0)
 
         for u_idx, val in enumerate(self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set']):
             if self.grid_input[u_idx] == val:
