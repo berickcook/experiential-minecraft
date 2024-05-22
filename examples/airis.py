@@ -63,6 +63,7 @@ class Airis:
         self.prediction_flex = 1
         self.last_compare = None
         self.best_compare = None
+        self.true_compare = None
         self.grid_map = np.empty((256, 500, 500), dtype=np.dtype('U42'))
         self.grid_origin_x = 2
         self.grid_origin_y = 2
@@ -110,13 +111,15 @@ class Airis:
                 self.states[0].change_grid = self.last_change_grid
 
             if self.current_goal:
-                if (self.pos_input[0][0], self.pos_input[0][1], self.pos_input[0][2]) == (self.given_goal[0][0], self.given_goal[0][1], self.given_goal[0][2]):
+                if (self.pos_input[0][0], self.pos_input[0][2]) == (self.current_goal[0][0], self.current_goal[0][2]) and self.pos_input[0][1] >= self.current_goal[0][1] - 1:
                     if np.all(self.current_goal == self.given_goal):
                         self.goal_achieved = True
                     else:
                         self.current_goal = self.given_goal
-                    return 'turn 0', 0
-                else:
+                        self.last_compare = None
+
+                print('Planning for goal', self.current_goal)
+                if not self.goal_achieved:
                     if not self.action_plan:
                         self.make_plan()
                         if self.action_plan:
@@ -269,7 +272,7 @@ class Airis:
             else:
                 print('Prediction Correct!')
 
-            print('Calculated ', len(self.states), 'to make this plan')
+            print('Calculated ', len(self.states), 'actions to make this plan')
             #
             # print('Actual Input', new_pos_input)
             # print('Actual Input', new_grid_input)
@@ -277,16 +280,26 @@ class Airis:
             # print('State Input', self.states[state].pos_input)
             # print('State Input', self.states[state].grid_input)
 
-            self.last_compare = (self.compare(new_pos_input, new_grid_input), new_pos_input, new_grid_input)
-            if self.best_compare is not None:
-                if self.last_compare[0] <= self.best_compare[0]:
-                    self.best_compare = self.last_compare
-                elif abs(self.last_compare[0] - self.best_compare[0]) > 20 and np.all(self.current_goal == self.given_goal):
-                    # self.given_goal = ((0, 65, 0, None, None), ())
-                    self.current_goal = ((self.best_compare[1][0][0], self.best_compare[1][0][1], self.best_compare[1][0][2], None, None), ())
-            else:
-                self.best_compare = self.last_compare
+            # if self.last_compare is not None:
+            #     if self.best_compare is not None:
+            #         if self.compare(new_pos_input, new_grid_input) <= self.best_compare[0]:
+            #             self.best_compare = (self.compare(new_pos_input, new_grid_input), new_pos_input, new_grid_input)
+            #         elif abs(self.last_compare[0] - self.best_compare[0]) > 20 and np.all(self.current_goal == self.given_goal):
+            #             # self.given_goal = ((0, 65, 0, None, None), ())
+            #             self.true_compare = self.best_compare
+            #             self.current_goal = ((self.last_compare[1][0][0], self.last_compare[1][0][1], self.last_compare[1][0][2], None, None), ())
+            #     else:
+            #         self.best_compare = self.last_compare
 
+            if self.last_compare is not None:
+                if abs(self.compare(new_pos_input, new_grid_input) - self.last_compare[0]) > 20 and np.all(self.current_goal == self.given_goal):
+                    self.current_goal = ((self.last_compare[1][0][0], self.last_compare[1][0][1], self.last_compare[1][0][2], None, None), ())
+
+            self.last_compare = (self.compare(self.pos_input, self.grid_input), self.pos_input, self.grid_input)
+
+            # if self.true_compare is not None:
+            #     if self.last_compare[0] <= self.true_compare[0]:
+            #         self.current_goal = self.given_goal
 
             print('State Goal Compare', self.states[state].compare)
             print('Actual Compare', self.last_compare[0])
@@ -368,8 +381,11 @@ class Airis:
                     goal_found = False
 
                     if goal_heap:
-                        goal_state = goal_heap[0][1]
-                        goal_found = True
+                        while goal_heap[0][2] == 1:
+                            heapq.heappop(goal_heap)
+                        if goal_heap:
+                            goal_state = goal_heap[0][1]
+                            goal_found = True
                     # # Method to explore the least confident prediction from the best fully confident compare state
                     # print('Best compare is', goal_heap[0][0], 'from state', goal_heap[0][2])
                     # best_compare = goal_heap[0][0]
@@ -458,8 +474,10 @@ class Airis:
                 condition_set = self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Set']
                 total_len += len(condition_set)
                 for i in condition_set:
-                    if not np.all(predict_state.pos_input[i] == self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][i]):
+                    if predict_state.pos_input[0][i] != self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][0][i]:
                         diff_count += 1
+                    # if not np.all(predict_state.pos_input[i] == self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][i]):
+                    #     diff_count += 1
 
                 if best_diff is not None:
                     if diff_count > best_diff:
@@ -523,8 +541,10 @@ class Airis:
                 condition_set = self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Set']
                 total_len += len(condition_set)
                 for i in condition_set:
-                    if not np.all(predict_state.pos_input[i] == self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][i]):
+                    if predict_state.pos_input[0][i] != self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][0][i]:
                         diff_count += 1
+                    # if not np.all(predict_state.pos_input[i] == self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][i]):
+                    #     diff_count += 1
 
                 if best_diff is not None:
                     if diff_count > best_diff:
@@ -628,8 +648,8 @@ class Airis:
         n_val = None
 
         conditions_pos = self.pos_input
-        conditions_pos_set = set(range(len(self.pos_input)))
-        conditions_pos_freq = [1] * len(self.pos_input)
+        conditions_pos_set = set(range(len(self.pos_input[0])))
+        conditions_pos_freq = [1] * len(self.pos_input[0])
 
         # for i, v in enumerate(self.pos_input):
         #     try:
@@ -712,10 +732,13 @@ class Airis:
         grid_remove_list = []
 
         for u_idx in self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Set']:
-            if not np.all(self.pos_input[u_idx] == self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][u_idx]):
-                # print('updating rule to remove POS set index', u_idx)
+            if self.pos_input[0][u_idx] == self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][0][u_idx]:
                 self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Freq'][u_idx] = 0
                 pos_remove_list.append(u_idx)
+            # if not np.all(self.pos_input[u_idx] == self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][u_idx]):
+            #     # print('updating rule to remove POS set index', u_idx)
+            #     self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Freq'][u_idx] = 0
+            #     pos_remove_list.append(u_idx)
 
         for u_idx in self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set']:
             if self.grid_input[u_idx] != self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions'][u_idx]:
@@ -745,10 +768,14 @@ class Airis:
         #     if self.pos_input[0][u_idx] == val:
         #         self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Freq'][0] = 1
         #         pos_add_list.append(u_idx)
+        for u_idx, val in enumerate(self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][0]):
+            if self.pos_input[0][u_idx] == val:
+                self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Freq'][u_idx] = 1
+                pos_add_list.append(u_idx)
 
-        if np.all(self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][0] == self.pos_input[0]):
-            self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Freq'][0] = 1
-            pos_add_list.append(0)
+        # if np.all(self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][0] == self.pos_input[0]):
+        #     self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Freq'][0] = 1
+        #     pos_add_list.append(0)
 
         for u_idx, val in enumerate(self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set']):
             if self.grid_input[u_idx] == val:
@@ -964,7 +991,7 @@ if __name__ == '__main__':
 
     fullStatKeys = ['XPos', 'YPos', 'ZPos', 'Pitch', 'Yaw']
 
-    sleep(30)
+    sleep(300)
     print('starting!')
 
     airis.lookDir(rob, 0, 0)
