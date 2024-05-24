@@ -113,7 +113,11 @@ class Airis:
             if self.current_goal:
                 if (self.pos_input[0][0], self.pos_input[0][2]) == (self.current_goal[0][0], self.current_goal[0][2]) and self.pos_input[0][1] >= self.current_goal[0][1] - 1:
                     if np.all(self.current_goal == self.given_goal):
-                        self.goal_achieved = True
+                        # self.goal_achieved = True
+                        rob.sendCommand('chat /tp -15 67 -24')
+                        rob.sendCommand('chat Goal Reached! Resetting to initial position...')
+                        sleep(1)
+                        self.state_history = set()
                     else:
                         self.current_goal = self.given_goal
                         self.last_compare = None
@@ -731,10 +735,16 @@ class Airis:
         pos_remove_list = []
         grid_remove_list = []
 
+        # print('Updating rule', rule)
+        #
+        # print('Rule Pos Condition Set', self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Set'])
+        # print('Rule Pos Condition Freq', self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Freq'])
         for u_idx in self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Set']:
-            if self.pos_input[0][u_idx] == self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][0][u_idx]:
+            if self.pos_input[0][u_idx] != self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][0][u_idx]:
+                # print('updating rule to remove POS set index', u_idx)
                 self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Freq'][u_idx] = 0
                 pos_remove_list.append(u_idx)
+
             # if not np.all(self.pos_input[u_idx] == self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][u_idx]):
             #     # print('updating rule to remove POS set index', u_idx)
             #     self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Freq'][u_idx] = 0
@@ -991,7 +1001,13 @@ if __name__ == '__main__':
 
     fullStatKeys = ['XPos', 'YPos', 'ZPos', 'Pitch', 'Yaw']
 
-    sleep(300)
+    sleep(5)
+    rob.sendCommand('chat /gamemode creative')
+    rob.sendCommand('chat /effect give @s minecraft:night_vision infinite 0 true')
+    rob.sendCommand('chat /tp -15 67 -24')
+    rob.sendCommand('chat /difficulty peaceful')
+
+    sleep(1)
     print('starting!')
 
     airis.lookDir(rob, 0, 0)
