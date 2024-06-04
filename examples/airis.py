@@ -114,8 +114,9 @@ class Airis:
                 if (self.pos_input[0][0], self.pos_input[0][2]) == (self.current_goal[0][0], self.current_goal[0][2]) and self.pos_input[0][1] >= self.current_goal[0][1] - 1:
                     if np.all(self.current_goal == self.given_goal):
                         # self.goal_achieved = True
-                        rob.sendCommand('chat /tp -15 67 -24')
+                        rob.sendCommand('chat /tp 206 64 119')
                         rob.sendCommand('chat Goal Reached! Resetting to initial position...')
+                        self.last_compare = None
                         sleep(1)
                         self.state_history = set()
                     else:
@@ -127,8 +128,10 @@ class Airis:
                     if not self.action_plan:
                         self.make_plan()
                         if self.action_plan:
+                            print('Action Plan:', self.action_plan)
                             return self.action_plan.pop(0)
                     else:
+                        print('Action Plan:', self.action_plan)
                         return self.action_plan.pop(0)
             else:
                 new_state = self.predict(action, 0)
@@ -199,13 +202,16 @@ class Airis:
                         pass
 
                 for index in pos_mismatch:
+                    found = False
                     try:
                         while self.states[state].all_rules_pos[index]:
                             data = heapq.heappop(self.states[state].all_rules_pos[index])
                             print('Checking other rules', tuple(map(lambda old, change: old + change, self.pos_input[index], data[3])), new_pos_input[index])
                             if np.all(tuple(map(lambda old, change: old + change, self.pos_input[index], data[3])) == new_pos_input[index]):
                                 self.applied_rules_pos[index] = data
+                                found = True
                                 break
+
                             # if index <= 2:
                             #     if self.pos_input[index] + data[3] == new_pos_input[index]:
                             #         found = True
@@ -219,7 +225,8 @@ class Airis:
                     except KeyError:
                         pass
 
-                    self.create_rule(action, 'Pos', index, self.pos_input[index], new_pos_input[index])
+                    if not found:
+                        self.create_rule(action, 'Pos', index, self.pos_input[index], new_pos_input[index])
 
             # elif grid_mismatch:
             #     clear_plan = True
@@ -260,11 +267,11 @@ class Airis:
             # for key in self.states[state].debug_dict.keys():
             #     print('debug dict', key, self.states[state].debug_dict[key])
 
-            for index in self.bad_predictions_pos.keys():
-                self.update_bad_rule(self.bad_predictions_pos[index])
-
-            for index in self.bad_predictions_grid.keys():
-                self.update_bad_rule(self.bad_predictions_grid[index])
+            # for index in self.bad_predictions_pos.keys():
+            #     self.update_bad_rule(self.bad_predictions_pos[index])
+            #
+            # for index in self.bad_predictions_grid.keys():
+            #     self.update_bad_rule(self.bad_predictions_grid[index])
 
             # print('Prediction State: ', self.states[state])
 
@@ -488,10 +495,15 @@ class Airis:
                         continue
 
                 # GRID
-                condition_set = self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set']
-                total_len += len(condition_set)
-                for i in condition_set:
-                    if predict_state.grid_input[i] != self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions'][i]:
+                # condition_set = self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set']
+                # total_len += len(condition_set)
+                # for i in condition_set:
+                #     if predict_state.grid_input[i] != self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions'][i]:
+                #         diff_count += 1
+
+                total_len += len(predict_state.grid_input)
+                for i, v in enumerate(predict_state.grid_input):
+                    if v not in self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Positive Grid Conditions'][i]:
                         diff_count += 1
 
                 if best_diff is not None:
@@ -555,10 +567,15 @@ class Airis:
                         continue
 
                 # GRID
-                condition_set = self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set']
-                total_len += len(condition_set)
-                for i in condition_set:
-                    if predict_state.grid_input[i] != self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions'][i]:
+                # condition_set = self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set']
+                # total_len += len(condition_set)
+                # for i in condition_set:
+                #     if predict_state.grid_input[i] != self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions'][i]:
+                #         diff_count += 1
+
+                total_len += len(predict_state.grid_input)
+                for i, v in enumerate(predict_state.grid_input):
+                    if v not in self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Positive Grid Conditions'][i]:
                         diff_count += 1
 
                 if best_diff is not None:
@@ -627,8 +644,6 @@ class Airis:
 
         predict_state.grid_input = self.grid_map[self.map_origin_y + predict_state.pos_input[0][1] - self.grid_origin_y:self.map_origin_y + predict_state.pos_input[0][1] + self.grid_origin_y + 1, self.map_origin_z + predict_state.pos_input[0][2] - self.grid_origin_z:self.map_origin_z + predict_state.pos_input[0][2] + self.grid_origin_z + 1, self.map_origin_x + predict_state.pos_input[0][0] - self.grid_origin_x:self.map_origin_x + predict_state.pos_input[0][0] + self.grid_origin_x + 1]
 
-        # np.flip(predict_state.grid_input, axis=0)
-
         predict_state.grid_input = predict_state.grid_input.flatten()
 
         for item in grid_changes:
@@ -650,6 +665,8 @@ class Airis:
         new_rule = str(uuid.uuid4())[:6]
         o_val = None
         n_val = None
+        positive_conditions_grid = []
+        negative_conditions_grid = []
 
         conditions_pos = self.pos_input
         conditions_pos_set = set(range(len(self.pos_input[0])))
@@ -663,9 +680,15 @@ class Airis:
         #     except KeyError:
         #         pass
 
-        conditions_grid = self.grid_input
+        # conditions_grid = self.grid_input
         conditions_grid_set = set(range(len(self.grid_input)))
         conditions_grid_freq = [1] * len(self.grid_input)
+
+        for i, v in enumerate(self.grid_input):
+            add_set = set()
+            add_set.add(v)
+            positive_conditions_grid.append(add_set)
+            negative_conditions_grid.append(set())
 
         # for i, v in enumerate(self.grid_input):
         #     try:
@@ -720,7 +743,8 @@ class Airis:
         self.knowledge['Pos-' + str(index) + '/' + str(o_val) + '/' + str(new_rule) + '/Pos Conditions'] = conditions_pos
         self.knowledge['Pos-' + str(index) + '/' + str(o_val) + '/' + str(new_rule) + '/Pos Conditions Set'] = conditions_pos_set
         self.knowledge['Pos-' + str(index) + '/' + str(o_val) + '/' + str(new_rule) + '/Pos Conditions Freq'] = conditions_pos_freq
-        self.knowledge['Grid-' + str(index) + '/' + str(o_val) + '/' + str(new_rule) + '/Grid Conditions'] = conditions_grid
+        self.knowledge['Grid-' + str(index) + '/' + str(o_val) + '/' + str(new_rule) + '/Positive Grid Conditions'] = positive_conditions_grid
+        self.knowledge['Grid-' + str(index) + '/' + str(o_val) + '/' + str(new_rule) + '/Negative Grid Conditions'] = negative_conditions_grid
         self.knowledge['Grid-' + str(index) + '/' + str(o_val) + '/' + str(new_rule) + '/Grid Conditions Set'] = conditions_grid_set
         self.knowledge['Grid-' + str(index) + '/' + str(o_val) + '/' + str(new_rule) + '/Grid Conditions Freq'] = conditions_grid_freq
         print('Rule', new_rule, 'created for', act, input_type, index, pre_val, post_val)
@@ -750,17 +774,20 @@ class Airis:
             #     self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Freq'][u_idx] = 0
             #     pos_remove_list.append(u_idx)
 
-        for u_idx in self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set']:
-            if self.grid_input[u_idx] != self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions'][u_idx]:
-                # print('updating rule to remove GRID set index', u_idx)
-                self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Freq'][u_idx] = 0
-                grid_remove_list.append(u_idx)
+        for u_idx, val in enumerate(self.grid_input):
+            self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Positive Grid Conditions'][u_idx].add(val)
+
+        # for u_idx in self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set']:
+        #     if self.grid_input[u_idx] != self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions'][u_idx]:
+        #         # print('updating rule to remove GRID set index', u_idx)
+        #         self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Freq'][u_idx] = 0
+        #         grid_remove_list.append(u_idx)
 
         for item in pos_remove_list:
             self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Set'].remove(item)
 
-        for item in grid_remove_list:
-            self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set'].remove(item)
+        # for item in grid_remove_list:
+        #     self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set'].remove(item)
 
         # print('updating complete')
 
@@ -787,16 +814,19 @@ class Airis:
         #     self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Freq'][0] = 1
         #     pos_add_list.append(0)
 
-        for u_idx, val in enumerate(self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set']):
-            if self.grid_input[u_idx] == val:
-                self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Freq'][u_idx] = 1
-                grid_add_list.append(u_idx)
+        for u_idx, val in enumerate(self.grid_input):
+            self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Negative Grid Conditions'][u_idx].add(val)
+
+        # for u_idx, val in enumerate(self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set']):
+        #     if self.grid_input[u_idx] == val:
+        #         self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Freq'][u_idx] = 1
+        #         grid_add_list.append(u_idx)
 
         for item in pos_add_list:
             self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Set'].add(item)
 
-        for item in grid_add_list:
-            self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set'].add(item)
+        # for item in grid_add_list:
+        #     self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set'].add(item)
 
     def lookDir(self, rob, pitch, yaw):
         logging.info("\tinside lookDir")
@@ -1001,13 +1031,13 @@ if __name__ == '__main__':
 
     fullStatKeys = ['XPos', 'YPos', 'ZPos', 'Pitch', 'Yaw']
 
-    sleep(5)
     rob.sendCommand('chat /gamemode creative')
     rob.sendCommand('chat /effect give @s minecraft:night_vision infinite 0 true')
-    rob.sendCommand('chat /tp -15 67 -24')
+    sleep(5)
+    rob.sendCommand('chat /tp 206 64 119')
     rob.sendCommand('chat /difficulty peaceful')
 
-    sleep(1)
+    sleep(5)
     print('starting!')
 
     airis.lookDir(rob, 0, 0)
@@ -1020,7 +1050,6 @@ if __name__ == '__main__':
         stats = [mc.getFullStat(key) for key in fullStatKeys]
         stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), 0]  # round(stats[4]) % 360]
         action, state = airis.capture_input(stats, grid, None, None, True)
-        print('Action Plan: ', airis.action_plan)
         print('performing action', action, 'and predicting state', state)
         # self.actions = ['move 0', 'move 45', 'move 90', 'move 135', 'move 180', 'move 225', 'move 270', 'move 315',
         #                 'jump 0', 'jump 45', 'jump 90', 'jump 135', 'jump 180', 'jump 225', 'jump 270', 'jump 315',
