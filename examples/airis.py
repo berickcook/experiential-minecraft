@@ -531,8 +531,8 @@ class Airis:
                 else:
                     heapq.heappush(predict_heap['Pos' + str(idx)], (diff_count, rule, idx, new_val, 'Pos', total_len, updates, age, idx))
 
-                if diff_count == 0:
-                    break
+                # if diff_count == 0:
+                #     break
 
             if not predict_heap['Pos' + str(idx)]:
                 predict_heap['Pos' + str(idx)] = None
@@ -603,8 +603,8 @@ class Airis:
                 else:
                     heapq.heappush(predict_heap['Grid' + str(idx)], (diff_count, rule, idx, new_val, 'Grid', total_len, updates, age, val))
 
-                if diff_count == 0:
-                    break
+                # if diff_count == 0:
+                #     break
 
             if not predict_heap['Grid' + str(idx)]:
                 predict_heap['Grid' + str(idx)] = None
@@ -788,6 +788,8 @@ class Airis:
 
         # for item in grid_remove_list:
         #     self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set'].remove(item)
+
+        self.knowledge[rule_data[4] + '-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Age'] = self.time_step
 
         # print('updating complete')
 
@@ -1033,7 +1035,7 @@ if __name__ == '__main__':
 
     rob.sendCommand('chat /gamemode creative')
     rob.sendCommand('chat /effect give @s minecraft:night_vision infinite 0 true')
-    sleep(5)
+    sleep(200)
     rob.sendCommand('chat /tp 206 64 119')
     rob.sendCommand('chat /difficulty peaceful')
 
