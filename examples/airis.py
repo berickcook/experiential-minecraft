@@ -12,14 +12,9 @@ from tagilmo.utils.mathutils import normAngle, degree2rad
 
 
 class State:
-    def __init__(self, pos_input, grid_input, act, prev, step):
-        self.pos_input = pos_input.copy()
-        self.grid_input = grid_input.copy()
-        self.action = act
-        self.prev_state = prev
-        self.change_pos = []
-        self.change_grid = []
-        self.step = step
+    def __init__(self, pos_input, grid_input):
+        self.pos_input = pos_input
+        self.grid_input = grid_input
         self.applied_rules_pos = dict()
         self.all_rules_pos = dict()
         self.applied_rules_grid = dict()
@@ -30,6 +25,9 @@ class State:
         self.confidence_total = None
         self.debug_heap = None
         self.debug_dict = dict()
+        self.incoming_edges = dict()
+        self.outgoing_edges = dict()
+        self.state_hash = hash((tuple(self.pos_input[0]), tuple(self.grid_input)))
 
 
 class Airis:
@@ -42,22 +40,20 @@ class Airis:
         self.hotbar_input = dict()
         self.mission_input = []
         self.states = None
+        self.state_graph = dict()
+        self.prediction_state_graph = dict()
         self.action_plan = []
         self.last_action = None
-        self.last_change_pos = set()
-        self.last_change_grid = set()
-        self.prev_last_change_pos = set()
-        self.prev_last_change_grid = set()
         # self.given_goal = None
         self.given_goal = ((0, 65, 0, None, None), ())
         self.current_goal = self.given_goal
         self.goal_achieved = False
-        self.applied_rules_pos = dict()
-        self.applied_rules_grid = dict()
+        self.applied_rules_pos = None
+        self.applied_rules_grid = None
+        self.all_rules_pos = None
+        self.all_rules_grid = None
         self.bad_predictions_pos = None
         self.bad_predictions_grid = None
-        self.prev_applied_rules_pos = None
-        self.prev_applied_rules_grid = None
         self.time_step = 0
         self.state_history = set()
         self.prediction_flex = 1
@@ -71,6 +67,7 @@ class Airis:
         self.map_origin_x = 250
         self.map_origin_y = 128
         self.map_origin_z = 250
+        self.debug_dict = dict()
         
         self.actions = ['move 0', 'move 45', 'move 90', 'move 135', 'move 180', 'move 225', 'move 270', 'move 315',
                         'jump 0', 'jump 45', 'jump 90', 'jump 135', 'jump 180', 'jump 225', 'jump 270', 'jump 315']
@@ -78,7 +75,7 @@ class Airis:
         # 'mine straight 0', 'mine straight 45', 'mine straight 90', 'mine straight 135', 'mine straight 180', 'mine straight 225', 'mine straight 270', 'mine straight 315']
         # 'mine down 0', 'mine down 45', 'mine down 90', 'mine down 135', 'mine down 180', 'mine down 225', 'mine down 270', 'mine down 315',
 
-    def capture_input(self, pos_input, grid_input, action, state, pre):
+    def capture_input(self, pos_input, grid_input, action, state, pre, confidence, applied_rules):
         if pre:
             self.pos_input = np.asarray([(math.floor(pos_input[0]), math.floor(pos_input[1]), math.floor(pos_input[2]))])
             self.grid_input = np.asarray(grid_input, dtype=np.dtype('U42'))
@@ -106,9 +103,29 @@ class Airis:
             #         raise Exception
 
             if not self.action_plan:
-                self.states = [State(self.pos_input, self.grid_input, None, 0, 0)]
-                self.states[0].change_pos = self.last_change_pos
-                self.states[0].change_grid = self.last_change_grid
+                prior_state = State(self.pos_input, self.grid_input)
+                self.states = []
+                try:
+                    prior_state = self.state_graph[(self.pos_input[0][0], self.pos_input[0][1], self.pos_input[0][2], prior_state.state_hash)]
+                    if prior_state.pos_input[0][0] != self.pos_input[0][0] or prior_state.pos_input[0][1] != self.pos_input[0][1] or prior_state.pos_input[0][2] != self.pos_input[0][2]:
+                        print('Break point 1', prior_state, prior_state.pos_input, self.pos_input)
+                        raise Exception
+                    heapq.heappush(self.states, (self.compare(self.pos_input, self.grid_input), time(), self.state_graph[(self.pos_input[0][0], self.pos_input[0][1], self.pos_input[0][2], prior_state.state_hash)], None, prior_state))
+                except KeyError:
+                    self.state_graph[(self.pos_input[0][0], self.pos_input[0][1], self.pos_input[0][2], prior_state.state_hash)] = prior_state
+                    if prior_state.pos_input[0][0] != self.pos_input[0][0] or prior_state.pos_input[0][1] != self.pos_input[0][1] or prior_state.pos_input[0][2] != self.pos_input[0][2]:
+                        print('Break point 2', prior_state, prior_state.pos_input, self.pos_input)
+                        raise Exception
+                    heapq.heappush(self.states, (self.compare(self.pos_input, self.grid_input), time(), self.state_graph[(self.pos_input[0][0], self.pos_input[0][1], self.pos_input[0][2], prior_state.state_hash)], None, prior_state))
+
+                # print('State Graph')
+                # for key in self.state_graph.keys():
+                #     print(key, self.state_graph[key], self.state_graph[key].pos_input, '--------------------------------------------------------')
+                #     print('Edges')
+                #     for edge in self.state_graph[key].outgoing_edges.keys():
+                #         print('Action: ', edge)
+                #         for item in self.state_graph[key].outgoing_edges[edge]:
+                #             print(item)
 
             if self.current_goal:
                 if (self.pos_input[0][0], self.pos_input[0][2]) == (self.current_goal[0][0], self.current_goal[0][2]) and self.pos_input[0][1] >= self.current_goal[0][1] - 1:
@@ -126,17 +143,21 @@ class Airis:
                 print('Planning for goal', self.current_goal)
                 if not self.goal_achieved:
                     if not self.action_plan:
-                        self.make_plan()
+                        self.make_plan(prior_state)
+                        # print('Prediction State Graph')
+                        # for key in self.prediction_state_graph.keys():
+                        #     print(key, self.prediction_state_graph[key], self.prediction_state_graph[key].pos_input, '--------------------------------------------------------')
+                        #     print('Edges')
+                        #     for edge in self.prediction_state_graph[key].outgoing_edges.keys():
+                        #         print('Action: ', edge)
+                        #         for item in self.prediction_state_graph[key].outgoing_edges[edge]:
+                        #             print(item)
                         if self.action_plan:
                             print('Action Plan:', self.action_plan)
                             return self.action_plan.pop(0)
                     else:
                         print('Action Plan:', self.action_plan)
                         return self.action_plan.pop(0)
-            else:
-                new_state = self.predict(action, 0)
-                self.states.append(new_state)
-                return action, 1
 
         else:
             new_pos_input = np.asarray([(math.floor(pos_input[0]), math.floor(pos_input[1]), math.floor(pos_input[2]))])
@@ -150,52 +171,37 @@ class Airis:
 
             clear_plan = False
             self.last_action = action
-            self.prev_applied_rules_pos = deepcopy(self.applied_rules_pos)
-            self.prev_applied_rules_grid = deepcopy(self.applied_rules_grid)
             self.bad_predictions_pos = dict()
             self.bad_predictions_grid = dict()
 
-            self.last_change_pos = set()
-            self.last_change_grid = set()
-
-            if self.states[state].confidence == 0:
+            if confidence == 0:
                 # create no confidence rules
                 for i, v in enumerate(self.pos_input):
                     try:
-                        del self.states[state].applied_rules_pos[i]
+                        print('deleting 0 confidence applied_rule')
+                        print(applied_rules[0][i])
+                        del applied_rules[0][i]
                     except KeyError:
                         pass
                     self.create_rule(action, 'Pos', i, self.pos_input[i], new_pos_input[i])
                 # for i, v in enumerate(self.grid_input):
                 #     self.create_rule(action, 'Grid', i, self.grid_input[i], new_grid_input[i])
 
-            pos_mismatch = [i for i, v in enumerate(self.states[state].pos_input) if not np.all(v == new_pos_input[i])]
-            grid_mismatch = [i for i, v in enumerate(self.states[state].grid_input) if v != new_grid_input[i]]
+            pos_mismatch = [i for i, v in enumerate(state.pos_input) if not np.all(v == new_pos_input[i])]
+            grid_mismatch = [i for i, v in enumerate(state.grid_input) if v != new_grid_input[i]]
 
-            self.applied_rules_pos = deepcopy(self.states[state].applied_rules_pos)
-            self.applied_rules_grid = deepcopy(self.states[state].applied_rules_grid)
-
-            # error = False
-            # for item in grid_mismatch:
-            #     if self.states[state].grid_input[item] != '' and self.time_step > 50:
-            #         error = True
-            #         print('mismatch at', item, self.states[state].grid_input[item], new_grid_input[item])
-            #
-            # if error:
-            #     print('Actual Input', new_grid_3d)
-            #     print('Actual Input', new_pos_input)
-            #     print('--------')
-            #     print('State Input', self.states[state].pos_input)
-            #     print('State Input', self.states[state].grid_input.reshape(5, 5, 5))
-            #     raise Exception
+            self.applied_rules_pos = deepcopy(applied_rules[0])
+            self.applied_rules_grid = deepcopy(applied_rules[1])
+            self.all_rules_pos = deepcopy(applied_rules[2])
+            self.all_rules_grid = deepcopy(applied_rules[3])
 
             if pos_mismatch:
                 clear_plan = True
                 for index in pos_mismatch:
-                    print('POS mismatch - ', index, self.pos_input[index], new_pos_input[index], self.states[state].pos_input[index])
+                    print('POS mismatch - ', index, self.pos_input[index], new_pos_input[index], state.pos_input[index])
                     try:
                         print('POS Prediction: ', self.applied_rules_pos[index])
-                        print('POS Predict Heap: ', self.states[state].debug_heap['Pos' + str(index)])
+                        # print('POS Predict Heap: ', state.debug_heap['Pos' + str(index)])
                         self.bad_predictions_pos[index] = deepcopy(self.applied_rules_pos[index])
                         del self.applied_rules_pos[index]
                     except KeyError:
@@ -204,24 +210,13 @@ class Airis:
                 for index in pos_mismatch:
                     found = False
                     try:
-                        while self.states[state].all_rules_pos[index]:
-                            data = heapq.heappop(self.states[state].all_rules_pos[index])
+                        while self.all_rules_pos[index]:
+                            data = heapq.heappop(self.all_rules_pos[index])
                             print('Checking other rules', tuple(map(lambda old, change: old + change, self.pos_input[index], data[3])), new_pos_input[index])
                             if np.all(tuple(map(lambda old, change: old + change, self.pos_input[index], data[3])) == new_pos_input[index]):
                                 self.applied_rules_pos[index] = data
                                 found = True
                                 break
-
-                            # if index <= 2:
-                            #     if self.pos_input[index] + data[3] == new_pos_input[index]:
-                            #         found = True
-                            #         self.applied_rules_pos[index] = data
-                            #         break
-                            # else:
-                            #     if data[3] == new_pos_input[index]:
-                            #         found = True
-                            #         self.applied_rules_pos[index] = data
-                            #         break
                     except KeyError:
                         pass
 
@@ -275,32 +270,12 @@ class Airis:
 
             # print('Prediction State: ', self.states[state])
 
-            print('Prediction Confidence: ', self.states[state].confidence, self.states[state].confidence_count, '/', self.states[state].confidence_total)
-            print('Prediction previous state', self.states[state].prev_state)
+            print('Prediction Confidence: ', confidence)
             if clear_plan:
                 print('Prediction Incorrect...')
                 self.action_plan = []
             else:
                 print('Prediction Correct!')
-
-            print('Calculated ', len(self.states), 'actions to make this plan')
-            #
-            # print('Actual Input', new_pos_input)
-            # print('Actual Input', new_grid_input)
-            # print('--------')
-            # print('State Input', self.states[state].pos_input)
-            # print('State Input', self.states[state].grid_input)
-
-            # if self.last_compare is not None:
-            #     if self.best_compare is not None:
-            #         if self.compare(new_pos_input, new_grid_input) <= self.best_compare[0]:
-            #             self.best_compare = (self.compare(new_pos_input, new_grid_input), new_pos_input, new_grid_input)
-            #         elif abs(self.last_compare[0] - self.best_compare[0]) > 20 and np.all(self.current_goal == self.given_goal):
-            #             # self.given_goal = ((0, 65, 0, None, None), ())
-            #             self.true_compare = self.best_compare
-            #             self.current_goal = ((self.last_compare[1][0][0], self.last_compare[1][0][1], self.last_compare[1][0][2], None, None), ())
-            #     else:
-            #         self.best_compare = self.last_compare
 
             if self.last_compare is not None:
                 if abs(self.compare(new_pos_input, new_grid_input) - self.last_compare[0]) > 20 and np.all(self.current_goal == self.given_goal):
@@ -308,136 +283,206 @@ class Airis:
 
             self.last_compare = (self.compare(self.pos_input, self.grid_input), self.pos_input, self.grid_input)
 
-            # if self.true_compare is not None:
-            #     if self.last_compare[0] <= self.true_compare[0]:
-            #         self.current_goal = self.given_goal
-
-            print('State Goal Compare', self.states[state].compare)
+            print('State Goal Compare', state.compare)
             print('Actual Compare', self.last_compare[0])
             print('Current Goal', self.current_goal)
 
-            self.prev_last_change_pos = deepcopy(self.last_change_pos)
-            self.prev_last_change_grid = deepcopy(self.last_change_grid)
             self.time_step += 1
             # if not clear_plan:
             self.state_history.add(hash((tuple(self.pos_input[0]), tuple(self.grid_input), action)))
 
-    def make_plan(self):
-        current_state = 0
+    def make_plan(self, original_state):
         self.action_plan = []
-        goal_compare = self.compare(self.states[0].pos_input, self.states[0].grid_input)
-        # goal_heap: Compare, State Index, Confidence
-        goal_heap = []
-        compare_heap = []
-        goal_state = 0
-        # confidence_heap: Confidence, State Index, Compare
-        most_confidence_heap = []
-        least_confidence_heap = []
-        state_hash_set = set()
+        goal_compare = self.states[0][0]
         goal_reached = False
         if goal_compare == 0:
             goal_reached = True
         step = 0
+        goal_heap = []
+        explored_states = set()
+        path_heap = dict()
+        goal_state = None
+        self.prediction_state_graph = self.state_graph
 
         while not goal_reached:
-            fresh_state = False
-            step += 1
+            # Check for missing outgoing edges in current state
+            current_state = self.states[0][2]
+            print('current state pos info', current_state.pos_input, 'grid info', current_state.grid_input)
+            goal_compare = self.compare(current_state.pos_input, current_state.grid_input)
+            current_state.compare = goal_compare
+            if goal_compare == 0:
+                goal_reached = True
+                goal_state = current_state
+                break
+
             for act in self.actions:
-                if 'jump' in act:
-                    discount = 0
-                else:
-                    discount = 0
                 try:
-                    check = self.knowledge['Action Rules'][act]
+                    act_updates = self.knowledge['Action Updates'][act]
+                except:
+                    print('Action not yet tried, trying...')
+                    new_state = self.predict(act, current_state)
+                    goal_state = new_state
+                    path_heap[goal_state] = [(step + 1, time(), act, current_state)]
+                    goal_reached = True
+                    current_state.outgoing_edges[act] = [deepcopy(new_state.applied_rules_pos), deepcopy(new_state.applied_rules_grid), new_state.confidence, 0, new_state, deepcopy(new_state.all_rules_pos), deepcopy(new_state.all_rules_grid)]
+                    break
+                update = False
+                try:
+                    check = current_state.outgoing_edges[act]
+                    check[4].compare = self.compare(check[4].pos_input, check[4].grid_input)
+                    if check[3] < act_updates:
+                        update = True
+                    if check[2] == 1:
+                        if check[4] not in explored_states:
+                            heapq.heappush(self.states, (check[4].compare + step + 1, time(), check[4], act, current_state))
+                    else:
+                        if check[4] not in explored_states:
+                            heapq.heappush(goal_heap, (check[4].compare, step + 1, time(), check[4], act, current_state))
+
+                    try:
+                        heapq.heappush(path_heap[check[4]], (step + 1, time(), act, current_state))
+                    except KeyError:
+                        path_heap[check[4]] = [(step + 1, time(), act, current_state)]
+                    if not update:
+                        print('Up-to-date Edge found:', current_state, act, check[4], check)
                 except KeyError:
-                    self.states.append(self.predict(act, 0))
-                    goal_reached = True
-                    goal_state = len(self.states) - 1
-                    break
+                    update = True
 
-                new_state = self.predict(act, current_state)
-                state_hash = hash((tuple(self.states[current_state].pos_input[0]), tuple(self.states[current_state].grid_input), act))
-                if state_hash not in state_hash_set:
-                    self.states.append(new_state)
-                    state_idx = len(self.states) - 1
-                    goal_compare = self.compare(self.states[state_idx].pos_input, self.states[state_idx].grid_input)
-                    self.states[state_idx].compare = goal_compare
-                    state_confidence = self.states[state_idx].confidence
-                    if state_hash not in self.state_history:
-                        heapq.heappush(goal_heap, (goal_compare + discount, state_idx, state_confidence, act, state_hash))
-                    heapq.heappush(compare_heap, (goal_compare + discount, state_idx, state_confidence, act, state_hash))
-                    heapq.heappush(most_confidence_heap, (-state_confidence, state_idx, goal_compare + discount, act, state_hash))
-                    heapq.heappush(least_confidence_heap, (state_confidence, state_idx, goal_compare + discount, act, state_hash))
-                    state_hash_set.add(state_hash)
-                    fresh_state = True
-            #         print('Predicting that action', act, 'from state', current_state, 'will result in state', state_idx, 'with a confidence of', state_confidence, self.states[state_idx].confidence_count, '/', self.states[state_idx].confidence_total, 'and a compare of', goal_compare)
-            #
-            # if not fresh_state:
-            #     print('No fresh predictions found from current state', current_state)
+                if update:
+                    new_state = self.predict(act, current_state)
+                    target_state = new_state
+                    if (new_state.pos_input[0][0], new_state.pos_input[0][1], new_state.pos_input[0][2], new_state.state_hash) not in self.prediction_state_graph.keys():
+                        self.prediction_state_graph[(new_state.pos_input[0][0], new_state.pos_input[0][1], new_state.pos_input[0][2], new_state.state_hash)] = new_state
+                        print('predicted state not in graph, adding', new_state, new_state.pos_input, 'to key', (new_state.pos_input[0][0], new_state.pos_input[0][1], new_state.pos_input[0][2], new_state.state_hash))
+                    else:
+                        target_state = self.prediction_state_graph[(new_state.pos_input[0][0], new_state.pos_input[0][1], new_state.pos_input[0][2], new_state.state_hash)]
+                        if target_state.pos_input[0][0] != new_state.pos_input[0][0] or target_state.pos_input[0][1] != new_state.pos_input[0][1] or target_state.pos_input[0][2] != new_state.pos_input[0][2]:
+                            print('Break point 3', target_state, target_state.pos_input, new_state.pos_input)
+                            print('Error in key', (new_state.pos_input[0][0], new_state.pos_input[0][1], new_state.pos_input[0][2], new_state.state_hash))
+                            raise Exception
+                        print('predicted state in graph, replacing with existing', target_state, target_state.pos_input)
 
-            if compare_heap and not goal_reached:
-                if compare_heap[0][0] == 0:
-                    goal_reached = True
-                    goal_state = compare_heap[0][1]
-                    print('Predicted state reaches goal! Trying...')
-                    print('Goal State', goal_state)
-                    break
+                    target_state.compare = self.compare(target_state.pos_input, target_state.grid_input)
 
-                if most_confidence_heap[0][0] == -1:
-                    current_state = most_confidence_heap[0][1]
-                    heapq.heappop(most_confidence_heap)
-                    # print('Setting new current state of', current_state)
-                else:
-                    goal_reached = True
-                    goal_found = False
+                    current_state.outgoing_edges[act] = [deepcopy(new_state.applied_rules_pos), deepcopy(new_state.applied_rules_grid), new_state.confidence, act_updates, target_state, deepcopy(new_state.all_rules_pos), deepcopy(new_state.all_rules_grid)]
+                    try:
+                        target_state.incoming_edges[act].append(current_state)
+                    except KeyError:
+                        target_state.incoming_edges[act] = [current_state]
 
-                    if goal_heap:
-                        while goal_heap[0][2] == 1:
-                            heapq.heappop(goal_heap)
-                        if goal_heap:
-                            goal_state = goal_heap[0][1]
-                            goal_found = True
-                    # # Method to explore the least confident prediction from the best fully confident compare state
-                    # print('Best compare is', goal_heap[0][0], 'from state', goal_heap[0][2])
-                    # best_compare = goal_heap[0][0]
-                    # print('least confidence pre popping', least_confidence_heap)
-                    # while goal_heap:
-                    #     temp_heap = deepcopy(least_confidence_heap)
-                    #     while temp_heap[0][2] > best_compare or temp_heap[0][0] == 1:
-                    #         print('least confident compare of', temp_heap[0][2], 'does not match best compare. Popping.')
-                    #         heapq.heappop(temp_heap)
-                    #         if not temp_heap:
-                    #             break
-                    #     if temp_heap:
-                    #         goal_state = temp_heap[0][1]
-                    #         goal_found = True
-                    #         print('goal state found in temp heap')
-                    #         break
-                    #     else:
-                    #         print('no low confidence predictions from best compare of', best_compare)
-                    #         heapq.heappop(goal_heap)
-                    #         if goal_heap:
-                    #             best_compare = goal_heap[0][0]
-                    #         else:
-                    #             break
+                    if target_state.confidence == 1:
+                        if target_state not in explored_states:
+                            heapq.heappush(self.states, (target_state.compare + step + 1, time(), target_state, act, current_state))
+                    else:
+                        if target_state not in explored_states:
+                            heapq.heappush(goal_heap, (target_state.compare, step + 1, time(), target_state, act, current_state))
 
-                    if not goal_found:
-                        goal_state = least_confidence_heap[0][1]
-                        print('goal state set to overall least confident prediction')
+                    try:
+                        heapq.heappush(path_heap[target_state], (step + 1, time(), act, current_state))
+                    except KeyError:
+                        path_heap[target_state] = [(step + 1, time(), act, current_state)]
+                    print('New Edge', current_state, act, target_state, current_state.outgoing_edges[act])
 
-                    print('goal state is', goal_state, 'with a confidence of', self.states[goal_state].confidence, self.states[goal_state].confidence_count, '/', self.states[goal_state].confidence_total)
+            explored_states.add(heapq.heappop(self.states)[2])
+            if not self.states:
+                break
 
-            # if len(self.states) > 550:
-            #     goal_reached = True
-            #     goal_state = goal_heap[0][1]
+        if not goal_reached:
+            while goal_state == original_state:
+                heapq.heappop(goal_heap)
+            goal_state = goal_heap[0][3]
 
-        plan_state = goal_state
-        self.action_plan.insert(0, (self.states[plan_state].action, plan_state))
-        plan_state = self.states[plan_state].prev_state
-        while plan_state > 0:
-            self.action_plan.insert(0, (self.states[plan_state].action, plan_state))
-            plan_state = self.states[plan_state].prev_state
-            pass
+        while goal_state != original_state:
+            #Action Plan (Action, resulting state, confidence, (applied_rules pos, grid, all pos, all grid) )
+            print('Adding Goal State to action plan', goal_state)
+            print('Previous State', path_heap[goal_state][0][3])
+            print('Original State', original_state)
+            self.action_plan.insert(0, (path_heap[goal_state][0][2], goal_state, path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][2], (path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][0], path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][1], path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][5], path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][6])))
+            goal_state = path_heap[goal_state][0][3]
+            print('New goal state', goal_state)
+
+        print('Number of persistent states', len(self.prediction_state_graph.keys()))
+
+    # def make_plan(self):
+    #     current_state = 0
+    #     self.action_plan = []
+    #     goal_compare = self.compare(self.states[0].pos_input, self.states[0].grid_input)
+    #     # goal_heap: Compare, State Index, Confidence
+    #     goal_heap = []
+    #     compare_heap = []
+    #     goal_state = 0
+    #     # confidence_heap: Confidence, State Index, Compare
+    #     most_confidence_heap = []
+    #     least_confidence_heap = []
+    #     state_hash_set = set()
+    #     goal_reached = False
+    #     if goal_compare == 0:
+    #         goal_reached = True
+    #     step = 0
+    #
+    #     while not goal_reached:
+    #         fresh_state = False
+    #         step += 1
+    #         for act in self.actions:
+    #             try:
+    #                 check = self.knowledge['Action Rules'][act]
+    #             except KeyError:
+    #                 self.states.append(self.predict(act, 0))
+    #                 goal_reached = True
+    #                 goal_state = len(self.states) - 1
+    #                 break
+    #
+    #             new_state = self.predict(act, current_state)
+    #             state_hash = hash((tuple(self.states[current_state].pos_input[0]), tuple(self.states[current_state].grid_input), act))
+    #             if state_hash not in state_hash_set:
+    #                 self.states.append(new_state)
+    #                 state_idx = len(self.states) - 1
+    #                 goal_compare = self.compare(self.states[state_idx].pos_input, self.states[state_idx].grid_input)
+    #                 self.states[state_idx].compare = goal_compare
+    #                 state_confidence = self.states[state_idx].confidence
+    #                 if state_hash not in self.state_history:
+    #                     heapq.heappush(goal_heap, (goal_compare, state_idx, state_confidence, act, state_hash))
+    #                 heapq.heappush(compare_heap, (goal_compare, state_idx, state_confidence, act, state_hash))
+    #                 heapq.heappush(most_confidence_heap, (-state_confidence, state_idx, goal_compare, act, state_hash))
+    #                 heapq.heappush(least_confidence_heap, (state_confidence, state_idx, goal_compare, act, state_hash))
+    #                 state_hash_set.add(state_hash)
+    #                 fresh_state = True
+    #
+    #         if compare_heap and not goal_reached:
+    #             if compare_heap[0][0] == 0:
+    #                 goal_reached = True
+    #                 goal_state = compare_heap[0][1]
+    #                 print('Predicted state reaches goal! Trying...')
+    #                 print('Goal State', goal_state)
+    #                 break
+    #
+    #             if most_confidence_heap[0][0] == -1:
+    #                 current_state = most_confidence_heap[0][1]
+    #                 heapq.heappop(most_confidence_heap)
+    #             else:
+    #                 goal_reached = True
+    #                 goal_found = False
+    #
+    #                 if goal_heap:
+    #                     while goal_heap[0][2] == 1:
+    #                         heapq.heappop(goal_heap)
+    #                     if goal_heap:
+    #                         goal_state = goal_heap[0][1]
+    #                         goal_found = True
+    #
+    #                 if not goal_found:
+    #                     goal_state = least_confidence_heap[0][1]
+    #                     print('goal state set to overall least confident prediction')
+    #
+    #                 print('goal state is', goal_state, 'with a confidence of', self.states[goal_state].confidence, self.states[goal_state].confidence_count, '/', self.states[goal_state].confidence_total)
+    #
+    #     plan_state = goal_state
+    #     self.action_plan.insert(0, (self.states[plan_state].action, plan_state))
+    #     plan_state = self.states[plan_state].prev_state
+    #     while plan_state > 0:
+    #         self.action_plan.insert(0, (self.states[plan_state].action, plan_state))
+    #         plan_state = self.states[plan_state].prev_state
+    #         pass
 
     def compare(self, pos_input, grid_input):
         compare_total = 0
@@ -461,9 +506,12 @@ class Airis:
         predict_heap = dict()
         self.debug_dict = dict()
 
-        predict_state = State(self.states[base_state].pos_input, self.states[base_state].grid_input, act, base_state, self.states[base_state].step + 1)
+        predict_state = State(copy(base_state.pos_input), copy(base_state.grid_input))
 
         # Predict pos conditions and heapify the output to guide more efficient grid checking. TO DO Check the speed of multiprocessing pooling vs current linear
+
+        print('predicting state', act, predict_state, 'from base state', base_state)
+        print('base state pos', base_state.pos_input)
 
         # Evaluate pos input
         for idx, val in enumerate(predict_state.pos_input):
@@ -525,11 +573,11 @@ class Airis:
                 if predict_heap['Pos' + str(idx)]:
                     if predict_heap['Pos' + str(idx)][0][0] == diff_count:
                         if age > predict_heap['Pos' + str(idx)][0][7]:
-                            heapq.heapreplace(predict_heap['Pos' + str(idx)], (diff_count, rule, idx, new_val, 'Pos', total_len, updates, age, idx))
+                            heapq.heapreplace(predict_heap['Pos' + str(idx)], (diff_count, rule, idx, new_val, 'Pos', total_len, updates, age, idx, act))
                     else:
-                        heapq.heappush(predict_heap['Pos' + str(idx)], (diff_count, rule, idx, new_val, 'Pos', total_len, updates, age, idx))
+                        heapq.heappush(predict_heap['Pos' + str(idx)], (diff_count, rule, idx, new_val, 'Pos', total_len, updates, age, idx, act))
                 else:
-                    heapq.heappush(predict_heap['Pos' + str(idx)], (diff_count, rule, idx, new_val, 'Pos', total_len, updates, age, idx))
+                    heapq.heappush(predict_heap['Pos' + str(idx)], (diff_count, rule, idx, new_val, 'Pos', total_len, updates, age, idx, act))
 
                 # if diff_count == 0:
                 #     break
@@ -597,11 +645,11 @@ class Airis:
                 if predict_heap['Grid' + str(idx)]:
                     if predict_heap['Grid' + str(idx)][0][0] == diff_count:
                         if age > predict_heap['Grid' + str(idx)][0][7]:
-                            heapq.heapreplace(predict_heap['Grid' + str(idx)], (diff_count, rule, idx, new_val, 'Grid', total_len, updates, age, val))
+                            heapq.heapreplace(predict_heap['Grid' + str(idx)], (diff_count, rule, idx, new_val, 'Grid', total_len, updates, age, val, act))
                     else:
-                        heapq.heappush(predict_heap['Grid' + str(idx)], (diff_count, rule, idx, new_val, 'Grid', total_len, updates, age, val))
+                        heapq.heappush(predict_heap['Grid' + str(idx)], (diff_count, rule, idx, new_val, 'Grid', total_len, updates, age, val, act))
                 else:
-                    heapq.heappush(predict_heap['Grid' + str(idx)], (diff_count, rule, idx, new_val, 'Grid', total_len, updates, age, val))
+                    heapq.heappush(predict_heap['Grid' + str(idx)], (diff_count, rule, idx, new_val, 'Grid', total_len, updates, age, val, act))
 
                 # if diff_count == 0:
                 #     break
@@ -659,6 +707,11 @@ class Airis:
         else:
             predict_state.confidence = 0
 
+        # Update state hash
+        predict_state.state_hash = hash((tuple(predict_state.pos_input[0]), tuple(predict_state.grid_input)))
+
+        print('returning state', predict_state, predict_state.pos_input)
+
         return predict_state
 
     def create_rule(self, act, input_type, index, pre_val, post_val):
@@ -704,9 +757,19 @@ class Airis:
             self.knowledge['Action Rules'] = dict()
 
         try:
+            check = self.knowledge['Action Updates']
+        except KeyError:
+            self.knowledge['Action Updates'] = dict()
+
+        try:
             self.knowledge['Action Rules'][act].append(new_rule)
         except KeyError:
             self.knowledge['Action Rules'][act] = [new_rule]
+
+        try:
+            self.knowledge['Action Updates'][act] += 1
+        except KeyError:
+            self.knowledge['Action Updates'][act] = 1
 
         if input_type == 'Pos':
             try:
@@ -750,7 +813,7 @@ class Airis:
         print('Rule', new_rule, 'created for', act, input_type, index, pre_val, post_val)
 
     def update_good_rule(self, rule_data):
-        # rule data format: (diff_count, rule, idx, new_val, 'Grid' / 'Pos', pos_data[2] + grid_data[1], updates, age, o_val)
+        # rule data format: (diff_count, rule, idx, new_val, 'Grid' / 'Pos', pos_data[2] + grid_data[1], updates, age, o_val, act)
         idx = rule_data[2]
         rule = rule_data[1]
         t = rule_data[4]
@@ -758,6 +821,7 @@ class Airis:
 
         pos_remove_list = []
         grid_remove_list = []
+        updated = False
 
         # print('Updating rule', rule)
         #
@@ -768,6 +832,7 @@ class Airis:
                 # print('updating rule to remove POS set index', u_idx)
                 self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Freq'][u_idx] = 0
                 pos_remove_list.append(u_idx)
+                updated = True
 
             # if not np.all(self.pos_input[u_idx] == self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][u_idx]):
             #     # print('updating rule to remove POS set index', u_idx)
@@ -775,7 +840,9 @@ class Airis:
             #     pos_remove_list.append(u_idx)
 
         for u_idx, val in enumerate(self.grid_input):
-            self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Positive Grid Conditions'][u_idx].add(val)
+            if val not in self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Positive Grid Conditions'][u_idx]:
+                self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Positive Grid Conditions'][u_idx].add(val)
+                updated = True
 
         # for u_idx in self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set']:
         #     if self.grid_input[u_idx] != self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions'][u_idx]:
@@ -791,44 +858,47 @@ class Airis:
 
         self.knowledge[rule_data[4] + '-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Age'] = self.time_step
 
+        if updated:
+            self.knowledge['Action Updates'][rule_data[9]] += 1
+
         # print('updating complete')
 
-    def update_bad_rule(self, rule_data):
-        # rule data format: (diff_count, rule, idx, new_val, 'Grid' / 'Pos', pos_data[2] + grid_data[1], updates, age, o_val)
-        idx = rule_data[2]
-        rule = rule_data[1]
-        t = rule_data[4]
-        o_val = rule_data[8]
-
-        pos_add_list = []
-        grid_add_list = []
-
-        # for u_idx, val in enumerate(self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][0]):
-        #     if self.pos_input[0][u_idx] == val:
-        #         self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Freq'][0] = 1
-        #         pos_add_list.append(u_idx)
-        for u_idx, val in enumerate(self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][0]):
-            if self.pos_input[0][u_idx] == val:
-                self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Freq'][u_idx] = 1
-                pos_add_list.append(u_idx)
-
-        # if np.all(self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][0] == self.pos_input[0]):
-        #     self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Freq'][0] = 1
-        #     pos_add_list.append(0)
-
-        for u_idx, val in enumerate(self.grid_input):
-            self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Negative Grid Conditions'][u_idx].add(val)
-
-        # for u_idx, val in enumerate(self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set']):
-        #     if self.grid_input[u_idx] == val:
-        #         self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Freq'][u_idx] = 1
-        #         grid_add_list.append(u_idx)
-
-        for item in pos_add_list:
-            self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Set'].add(item)
-
-        # for item in grid_add_list:
-        #     self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set'].add(item)
+    # def update_bad_rule(self, rule_data):
+    #     # rule data format: (diff_count, rule, idx, new_val, 'Grid' / 'Pos', pos_data[2] + grid_data[1], updates, age, o_val, act)
+    #     idx = rule_data[2]
+    #     rule = rule_data[1]
+    #     t = rule_data[4]
+    #     o_val = rule_data[8]
+    #
+    #     pos_add_list = []
+    #     grid_add_list = []
+    #
+    #     # for u_idx, val in enumerate(self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][0]):
+    #     #     if self.pos_input[0][u_idx] == val:
+    #     #         self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Freq'][0] = 1
+    #     #         pos_add_list.append(u_idx)
+    #     for u_idx, val in enumerate(self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][0]):
+    #         if self.pos_input[0][u_idx] == val:
+    #             self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Freq'][u_idx] = 1
+    #             pos_add_list.append(u_idx)
+    #
+    #     # if np.all(self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][0] == self.pos_input[0]):
+    #     #     self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Freq'][0] = 1
+    #     #     pos_add_list.append(0)
+    #
+    #     for u_idx, val in enumerate(self.grid_input):
+    #         self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Negative Grid Conditions'][u_idx].add(val)
+    #
+    #     # for u_idx, val in enumerate(self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set']):
+    #     #     if self.grid_input[u_idx] == val:
+    #     #         self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Freq'][u_idx] = 1
+    #     #         grid_add_list.append(u_idx)
+    #
+    #     for item in pos_add_list:
+    #         self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Set'].add(item)
+    #
+    #     # for item in grid_add_list:
+    #     #     self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set'].add(item)
 
     def lookDir(self, rob, pitch, yaw):
         logging.info("\tinside lookDir")
@@ -920,7 +990,7 @@ class Airis:
             if not timedout:
                 self.center(rob, [e_pos[0], math.floor(stats[1]), e_pos[2]], o_pitch, o_yaw)
         old_stats = [mc.getFullStat(key) for key in fullStatKeys]
-        sleep(.05)
+        sleep(.5)
         stats = [mc.getFullStat(key) for key in fullStatKeys]
         while old_stats[1] != stats[1]:
             old_stats = [mc.getFullStat(key) for key in fullStatKeys]
@@ -972,7 +1042,7 @@ class Airis:
             if not timedout:
                 self.center(rob, [e_pos[0], math.floor(stats[1]), e_pos[2]], o_pitch, o_yaw)
         old_stats = [mc.getFullStat(key) for key in fullStatKeys]
-        sleep(.05)
+        sleep(.5)
         stats = [mc.getFullStat(key) for key in fullStatKeys]
         while old_stats[1] != stats[1]:
             old_stats = [mc.getFullStat(key) for key in fullStatKeys]
@@ -1035,7 +1105,7 @@ if __name__ == '__main__':
 
     rob.sendCommand('chat /gamemode creative')
     rob.sendCommand('chat /effect give @s minecraft:night_vision infinite 0 true')
-    sleep(200)
+    sleep(2)
     rob.sendCommand('chat /tp 206 64 119')
     rob.sendCommand('chat /difficulty peaceful')
 
@@ -1051,7 +1121,7 @@ if __name__ == '__main__':
     while not airis.goal_achieved:
         stats = [mc.getFullStat(key) for key in fullStatKeys]
         stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), 0]  # round(stats[4]) % 360]
-        action, state = airis.capture_input(stats, grid, None, None, True)
+        action, state, confidence, applied_rules = airis.capture_input(stats, grid, None, None, True, None, None)
         print('performing action', action, 'and predicting state', state)
         # self.actions = ['move 0', 'move 45', 'move 90', 'move 135', 'move 180', 'move 225', 'move 270', 'move 315',
         #                 'jump 0', 'jump 45', 'jump 90', 'jump 135', 'jump 180', 'jump 225', 'jump 270', 'jump 315',
@@ -1246,7 +1316,7 @@ if __name__ == '__main__':
         stats = [mc.getFullStat(key) for key in fullStatKeys]
         stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), 0]  # round(stats[4]) % 360]
         grid = mc.getNearGrid()
-        airis.capture_input(stats, grid, action, state, False)
+        airis.capture_input(stats, grid, action, state, False, confidence, applied_rules)
         print('Current Stats', stats)
         airis.save_knowledge('Knowledge.npy')
 
