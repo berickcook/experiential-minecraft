@@ -25,7 +25,7 @@ class State:
         self.confidence_total = None
         self.debug_heap = None
         self.debug_dict = dict()
-        self.incoming_edges = dict()
+        # self.incoming_edges = dict()
         self.outgoing_edges = dict()
         self.state_hash = hash((tuple(self.pos_input[0]), tuple(self.grid_input)))
 
@@ -68,6 +68,7 @@ class Airis:
         self.map_origin_y = 128
         self.map_origin_z = 250
         self.debug_dict = dict()
+        self.explored_states = set()
         
         self.actions = ['move 0', 'move 45', 'move 90', 'move 135', 'move 180', 'move 225', 'move 270', 'move 315',
                         'jump 0', 'jump 45', 'jump 90', 'jump 135', 'jump 180', 'jump 225', 'jump 270', 'jump 315']
@@ -154,9 +155,11 @@ class Airis:
                         #             print(item)
                         if self.action_plan:
                             print('Action Plan:', self.action_plan)
+                            print('Action Plan Length:', len(self.action_plan))
                             return self.action_plan.pop(0)
                     else:
                         print('Action Plan:', self.action_plan)
+                        print('Action Plan Length:', len(self.action_plan))
                         return self.action_plan.pop(0)
 
         else:
@@ -299,7 +302,9 @@ class Airis:
             goal_reached = True
         step = 0
         goal_heap = []
-        explored_states = set()
+        self.explored_states.add(self.states[0][2])
+        check_states = set()
+        check_states.add(self.states[0][2])
         path_heap = dict()
         goal_state = None
         self.prediction_state_graph = self.state_graph
@@ -307,7 +312,7 @@ class Airis:
         while not goal_reached:
             # Check for missing outgoing edges in current state
             current_state = self.states[0][2]
-            print('current state pos info', current_state.pos_input, 'grid info', current_state.grid_input)
+            # print('current state pos info', current_state.pos_input, 'grid info', current_state.grid_input)
             goal_compare = self.compare(current_state.pos_input, current_state.grid_input)
             current_state.compare = goal_compare
             if goal_compare == 0:
@@ -332,19 +337,21 @@ class Airis:
                     check[4].compare = self.compare(check[4].pos_input, check[4].grid_input)
                     if check[3] < act_updates:
                         update = True
-                    if check[2] == 1:
-                        if check[4] not in explored_states:
-                            heapq.heappush(self.states, (check[4].compare + step + 1, time(), check[4], act, current_state))
-                    else:
-                        if check[4] not in explored_states:
-                            heapq.heappush(goal_heap, (check[4].compare, step + 1, time(), check[4], act, current_state))
-
-                    try:
-                        heapq.heappush(path_heap[check[4]], (step + 1, time(), act, current_state))
-                    except KeyError:
-                        path_heap[check[4]] = [(step + 1, time(), act, current_state)]
                     if not update:
-                        print('Up-to-date Edge found:', current_state, act, check[4], check)
+                        if check[2] == 1:
+                            if check[4] not in check_states:
+                                heapq.heappush(self.states, (check[4].compare + step + 1, time(), check[4], act, current_state))
+                                check_states.add(check[4])
+                        else:
+                            if check[4] not in check_states:
+                                heapq.heappush(goal_heap, (check[4].compare, check[2], step + 1, time(), check[4], act, current_state))
+
+                        try:
+                            heapq.heappush(path_heap[check[4]], (step + 1, time(), act, current_state))
+                        except KeyError:
+                            path_heap[check[4]] = [(step + 1, time(), act, current_state)]
+
+                        # print('Up-to-date Edge found:', current_state, act, check[4], check)
                 except KeyError:
                     update = True
 
@@ -365,17 +372,18 @@ class Airis:
                     target_state.compare = self.compare(target_state.pos_input, target_state.grid_input)
 
                     current_state.outgoing_edges[act] = [deepcopy(new_state.applied_rules_pos), deepcopy(new_state.applied_rules_grid), new_state.confidence, act_updates, target_state, deepcopy(new_state.all_rules_pos), deepcopy(new_state.all_rules_grid)]
-                    try:
-                        target_state.incoming_edges[act].append(current_state)
-                    except KeyError:
-                        target_state.incoming_edges[act] = [current_state]
+                    # try:
+                    #     target_state.incoming_edges[act].append(current_state)
+                    # except KeyError:
+                    #     target_state.incoming_edges[act] = [current_state]
 
-                    if target_state.confidence == 1:
-                        if target_state not in explored_states:
+                    if new_state.confidence == 1:
+                        if target_state not in check_states:
                             heapq.heappush(self.states, (target_state.compare + step + 1, time(), target_state, act, current_state))
+                            check_states.add(target_state)
                     else:
-                        if target_state not in explored_states:
-                            heapq.heappush(goal_heap, (target_state.compare, step + 1, time(), target_state, act, current_state))
+                        if target_state not in check_states:
+                            heapq.heappush(goal_heap, (target_state.compare, new_state.confidence, step + 1, time(), target_state, act, current_state))
 
                     try:
                         heapq.heappush(path_heap[target_state], (step + 1, time(), act, current_state))
@@ -383,14 +391,18 @@ class Airis:
                         path_heap[target_state] = [(step + 1, time(), act, current_state)]
                     print('New Edge', current_state, act, target_state, current_state.outgoing_edges[act])
 
-            explored_states.add(heapq.heappop(self.states)[2])
+            add_state = heapq.heappop(self.states)[2]
+            # self.explored_states.add(add_state)
             if not self.states:
                 break
 
         if not goal_reached:
+            goal_state = goal_heap[0][4]
             while goal_state == original_state:
                 heapq.heappop(goal_heap)
-            goal_state = goal_heap[0][3]
+                goal_state = goal_heap[0][4]
+            self.action_plan.insert(0, (goal_heap[0][5], goal_heap[0][4], goal_heap[0][1], (goal_heap[0][6].outgoing_edges[goal_heap[0][5]][0], goal_heap[0][6].outgoing_edges[goal_heap[0][5]][1], goal_heap[0][6].outgoing_edges[goal_heap[0][5]][5], goal_heap[0][6].outgoing_edges[goal_heap[0][5]][6])))
+            goal_state = goal_heap[0][6]
 
         while goal_state != original_state:
             #Action Plan (Action, resulting state, confidence, (applied_rules pos, grid, all pos, all grid) )
@@ -1105,7 +1117,7 @@ if __name__ == '__main__':
 
     rob.sendCommand('chat /gamemode creative')
     rob.sendCommand('chat /effect give @s minecraft:night_vision infinite 0 true')
-    sleep(2)
+    sleep(60)
     rob.sendCommand('chat /tp 206 64 119')
     rob.sendCommand('chat /difficulty peaceful')
 
