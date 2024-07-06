@@ -539,6 +539,7 @@ class Airis:
             best_diff = None
 
             for rule in rules_list[::-1]:
+                differences = []
                 diff_count = 0
                 total_len = 0
                 # POS
@@ -547,6 +548,7 @@ class Airis:
                 for i in condition_set:
                     if predict_state.pos_input[0][i] != self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][0][i]:
                         diff_count += 1
+                        differences.append(('Pos', predict_state.pos_input[0][i], self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][0][i]))
                     # if not np.all(predict_state.pos_input[i] == self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][i]):
                     #     diff_count += 1
 
@@ -565,6 +567,7 @@ class Airis:
                 for i, v in enumerate(predict_state.grid_input):
                     if v not in self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Positive Grid Conditions'][i]:
                         diff_count += 1
+                        differences.append(('Grid', v, i, self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Positive Grid Conditions'][i]))
 
                 if best_diff is not None:
                     if diff_count > best_diff:
@@ -585,11 +588,11 @@ class Airis:
                 if predict_heap['Pos' + str(idx)]:
                     if predict_heap['Pos' + str(idx)][0][0] == diff_count:
                         if age > predict_heap['Pos' + str(idx)][0][7]:
-                            heapq.heapreplace(predict_heap['Pos' + str(idx)], (diff_count, rule, idx, new_val, 'Pos', total_len, updates, age, idx, act))
+                            heapq.heapreplace(predict_heap['Pos' + str(idx)], (diff_count, rule, idx, new_val, 'Pos', total_len, updates, age, idx, act, differences))
                     else:
-                        heapq.heappush(predict_heap['Pos' + str(idx)], (diff_count, rule, idx, new_val, 'Pos', total_len, updates, age, idx, act))
+                        heapq.heappush(predict_heap['Pos' + str(idx)], (diff_count, rule, idx, new_val, 'Pos', total_len, updates, age, idx, act, differences))
                 else:
-                    heapq.heappush(predict_heap['Pos' + str(idx)], (diff_count, rule, idx, new_val, 'Pos', total_len, updates, age, idx, act))
+                    heapq.heappush(predict_heap['Pos' + str(idx)], (diff_count, rule, idx, new_val, 'Pos', total_len, updates, age, idx, act, differences))
 
                 # if diff_count == 0:
                 #     break
@@ -598,76 +601,76 @@ class Airis:
                 predict_heap['Pos' + str(idx)] = None
 
         # Evaluate grid input
-        for idx, val in enumerate(predict_state.grid_input):
-            predict_heap['Grid' + str(idx)] = []
-            try:
-                rules_list = self.knowledge['Grid-' + str(idx) + '/' + str(val) + '/Actions'][act]
-            except KeyError:
-                predict_heap['Grid' + str(idx)] = None
-                continue
-
-            o_val = val
-
-            best_diff = None
-
-            for rule in rules_list[::-1]:
-                diff_count = 0
-                total_len = 0
-                # POS
-                condition_set = self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Set']
-                total_len += len(condition_set)
-                for i in condition_set:
-                    if predict_state.pos_input[0][i] != self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][0][i]:
-                        diff_count += 1
-                    # if not np.all(predict_state.pos_input[i] == self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][i]):
-                    #     diff_count += 1
-
-                if best_diff is not None:
-                    if diff_count > best_diff:
-                        continue
-
-                # GRID
-                # condition_set = self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set']
-                # total_len += len(condition_set)
-                # for i in condition_set:
-                #     if predict_state.grid_input[i] != self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions'][i]:
-                #         diff_count += 1
-
-                total_len += len(predict_state.grid_input)
-                for i, v in enumerate(predict_state.grid_input):
-                    if v not in self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Positive Grid Conditions'][i]:
-                        diff_count += 1
-
-                if best_diff is not None:
-                    if diff_count > best_diff:
-                        continue
-
-                updates = self.knowledge['Grid-' + str(idx) + '/' + str(val) + '/' + str(rule) + '/Updates']
-                new_val = self.knowledge['Grid-' + str(idx) + '/' + str(val) + '/' + str(rule) + '/New Value']
-                age = self.knowledge['Grid-' + str(idx) + '/' + str(val) + '/' + str(rule) + '/Age']
-
-                best_diff = diff_count
-
-                if total_len == 0:
-                    continue
-
-                if diff_count == total_len:
-                    continue
-
-                if predict_heap['Grid' + str(idx)]:
-                    if predict_heap['Grid' + str(idx)][0][0] == diff_count:
-                        if age > predict_heap['Grid' + str(idx)][0][7]:
-                            heapq.heapreplace(predict_heap['Grid' + str(idx)], (diff_count, rule, idx, new_val, 'Grid', total_len, updates, age, val, act))
-                    else:
-                        heapq.heappush(predict_heap['Grid' + str(idx)], (diff_count, rule, idx, new_val, 'Grid', total_len, updates, age, val, act))
-                else:
-                    heapq.heappush(predict_heap['Grid' + str(idx)], (diff_count, rule, idx, new_val, 'Grid', total_len, updates, age, val, act))
-
-                # if diff_count == 0:
-                #     break
-
-            if not predict_heap['Grid' + str(idx)]:
-                predict_heap['Grid' + str(idx)] = None
+        # for idx, val in enumerate(predict_state.grid_input):
+        #     predict_heap['Grid' + str(idx)] = []
+        #     try:
+        #         rules_list = self.knowledge['Grid-' + str(idx) + '/' + str(val) + '/Actions'][act]
+        #     except KeyError:
+        #         predict_heap['Grid' + str(idx)] = None
+        #         continue
+        #
+        #     o_val = val
+        #
+        #     best_diff = None
+        #
+        #     for rule in rules_list[::-1]:
+        #         diff_count = 0
+        #         total_len = 0
+        #         # POS
+        #         condition_set = self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Set']
+        #         total_len += len(condition_set)
+        #         for i in condition_set:
+        #             if predict_state.pos_input[0][i] != self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][0][i]:
+        #                 diff_count += 1
+        #             # if not np.all(predict_state.pos_input[i] == self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][i]):
+        #             #     diff_count += 1
+        #
+        #         if best_diff is not None:
+        #             if diff_count > best_diff:
+        #                 continue
+        #
+        #         # GRID
+        #         # condition_set = self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set']
+        #         # total_len += len(condition_set)
+        #         # for i in condition_set:
+        #         #     if predict_state.grid_input[i] != self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions'][i]:
+        #         #         diff_count += 1
+        #
+        #         total_len += len(predict_state.grid_input)
+        #         for i, v in enumerate(predict_state.grid_input):
+        #             if v not in self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Positive Grid Conditions'][i]:
+        #                 diff_count += 1
+        #
+        #         if best_diff is not None:
+        #             if diff_count > best_diff:
+        #                 continue
+        #
+        #         updates = self.knowledge['Grid-' + str(idx) + '/' + str(val) + '/' + str(rule) + '/Updates']
+        #         new_val = self.knowledge['Grid-' + str(idx) + '/' + str(val) + '/' + str(rule) + '/New Value']
+        #         age = self.knowledge['Grid-' + str(idx) + '/' + str(val) + '/' + str(rule) + '/Age']
+        #
+        #         best_diff = diff_count
+        #
+        #         if total_len == 0:
+        #             continue
+        #
+        #         if diff_count == total_len:
+        #             continue
+        #
+        #         if predict_heap['Grid' + str(idx)]:
+        #             if predict_heap['Grid' + str(idx)][0][0] == diff_count:
+        #                 if age > predict_heap['Grid' + str(idx)][0][7]:
+        #                     heapq.heapreplace(predict_heap['Grid' + str(idx)], (diff_count, rule, idx, new_val, 'Grid', total_len, updates, age, val, act))
+        #             else:
+        #                 heapq.heappush(predict_heap['Grid' + str(idx)], (diff_count, rule, idx, new_val, 'Grid', total_len, updates, age, val, act))
+        #         else:
+        #             heapq.heappush(predict_heap['Grid' + str(idx)], (diff_count, rule, idx, new_val, 'Grid', total_len, updates, age, val, act))
+        #
+        #         # if diff_count == 0:
+        #         #     break
+        #
+        #     if not predict_heap['Grid' + str(idx)]:
+        #         predict_heap['Grid' + str(idx)] = None
 
         grid_changes = []
 
@@ -825,7 +828,7 @@ class Airis:
         print('Rule', new_rule, 'created for', act, input_type, index, pre_val, post_val)
 
     def update_good_rule(self, rule_data):
-        # rule data format: (diff_count, rule, idx, new_val, 'Grid' / 'Pos', pos_data[2] + grid_data[1], updates, age, o_val, act)
+        # rule data format: (diff_count, rule, idx, new_val, 'Grid' / 'Pos', pos_data[2] + grid_data[1], updates, age, o_val, act, differences)
         idx = rule_data[2]
         rule = rule_data[1]
         t = rule_data[4]
@@ -835,13 +838,15 @@ class Airis:
         grid_remove_list = []
         updated = False
 
-        # print('Updating rule', rule)
+        print('Updating rule', rule, 'diff count was', rule_data[0])
+        print('Differences', rule_data[10])
         #
-        # print('Rule Pos Condition Set', self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Set'])
+        print('Rule Pos Condition Set', self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Set'])
         # print('Rule Pos Condition Freq', self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Freq'])
         for u_idx in self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Set']:
+            print('checking data', self.pos_input[0][u_idx], 'and', self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][0][u_idx])
             if self.pos_input[0][u_idx] != self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][0][u_idx]:
-                # print('updating rule to remove POS set index', u_idx)
+                print('updating rule to remove POS set index', u_idx)
                 self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions Freq'][u_idx] = 0
                 pos_remove_list.append(u_idx)
                 updated = True
@@ -853,6 +858,7 @@ class Airis:
 
         for u_idx, val in enumerate(self.grid_input):
             if val not in self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Positive Grid Conditions'][u_idx]:
+                print(val, 'not found for index', u_idx, 'adding...')
                 self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Positive Grid Conditions'][u_idx].add(val)
                 updated = True
 
@@ -871,6 +877,7 @@ class Airis:
         self.knowledge[rule_data[4] + '-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Age'] = self.time_step
 
         if updated:
+            print('rule was updated')
             self.knowledge['Action Updates'][rule_data[9]] += 1
 
         # print('updating complete')
