@@ -70,6 +70,9 @@ class Airis:
         self.map_origin_z = 250
         self.debug_dict = dict()
         self.explored_states = set()
+        self.grid_output = dict()
+        self.state_output = dict()
+        self.edges_output = dict()
         
         self.actions = ['move 0', 'move 45', 'move 90', 'move 135', 'move 180', 'move 225', 'move 270', 'move 315',
                         'jump 0', 'jump 45', 'jump 90', 'jump 135', 'jump 180', 'jump 225', 'jump 270', 'jump 315']
@@ -116,6 +119,9 @@ class Airis:
             #         raise Exception
 
             if not self.action_plan:
+                for key in self.state_output.keys():
+                    self.state_output[key][3] = 3
+                self.edges_output = dict()
                 prior_state = State(self.pos_input, self.grid_input)
                 self.states = []
                 try:
@@ -123,13 +129,13 @@ class Airis:
                     if prior_state.pos_input[0][0] != self.pos_input[0][0] or prior_state.pos_input[0][1] != self.pos_input[0][1] or prior_state.pos_input[0][2] != self.pos_input[0][2]:
                         print('Break point 1', prior_state, prior_state.pos_input, self.pos_input)
                         raise Exception
-                    heapq.heappush(self.states, (self.compare(self.pos_input, self.grid_input), time(), self.state_graph[(self.pos_input[0][0], self.pos_input[0][1], self.pos_input[0][2], prior_state.state_hash)], None, prior_state))
+                    heapq.heappush(self.states, (self.compare(self.pos_input, self.grid_input), 0, self.state_graph[(self.pos_input[0][0], self.pos_input[0][1], self.pos_input[0][2], prior_state.state_hash)], None, prior_state))
                 except KeyError:
                     self.state_graph[(self.pos_input[0][0], self.pos_input[0][1], self.pos_input[0][2], prior_state.state_hash)] = prior_state
                     if prior_state.pos_input[0][0] != self.pos_input[0][0] or prior_state.pos_input[0][1] != self.pos_input[0][1] or prior_state.pos_input[0][2] != self.pos_input[0][2]:
                         print('Break point 2', prior_state, prior_state.pos_input, self.pos_input)
                         raise Exception
-                    heapq.heappush(self.states, (self.compare(self.pos_input, self.grid_input), time(), self.state_graph[(self.pos_input[0][0], self.pos_input[0][1], self.pos_input[0][2], prior_state.state_hash)], None, prior_state))
+                    heapq.heappush(self.states, (self.compare(self.pos_input, self.grid_input), 0, self.state_graph[(self.pos_input[0][0], self.pos_input[0][1], self.pos_input[0][2], prior_state.state_hash)], None, prior_state))
 
                 self.explored_states.add(tuple(self.pos_input[0]))
                 # print('State Graph')
@@ -168,12 +174,63 @@ class Airis:
                         #             print(item)
                         if self.action_plan:
                             # print('Action Plan:', self.action_plan)
+                            for yi, y in enumerate(grid_input_3d):
+                                for zi, z in enumerate(grid_input_3d[yi]):
+                                    for xi, x in enumerate(grid_input_3d[yi][zi]):
+                                        if x != 'air':
+                                            self.grid_output[(self.pos_input[0][1] + yi - self.grid_origin_y, self.pos_input[0][2] + zi - self.grid_origin_z, self.pos_input[0][0] + xi - self.grid_origin_x)] = (self.pos_input[0][0] + xi - self.grid_origin_x, self.pos_input[0][1] + yi - self.grid_origin_y, self.pos_input[0][2] + zi - self.grid_origin_z, x)
+
+                            self.state_output[tuple(self.pos_input[0])] = [self.pos_input[0][0], self.pos_input[0][1], self.pos_input[0][2], 1]
+
+                            np.save('output/state_output_temp.npy', self.state_output)
+                            try:
+                                os.replace('output/state_output_temp.npy', 'output/state_output.npy')
+                            except PermissionError:
+                                pass
+
+                            np.save('output/edge_output_temp.npy', self.edges_output)
+                            try:
+                                os.replace('output/edge_output_temp.npy', 'output/edge_output.npy')
+                            except PermissionError:
+                                pass
+
+                            np.save('output/grid_output_temp.npy', self.grid_output)
+                            try:
+                                os.replace('output/grid_output_temp.npy', 'output/grid_output.npy')
+                            except PermissionError:
+                                pass
                             print('Action Plan Length:', len(self.action_plan))
                             return self.action_plan.pop(0)
                     else:
                         # print('Action Plan:', self.action_plan)
+                        for yi, y in enumerate(grid_input_3d):
+                            for zi, z in enumerate(grid_input_3d[yi]):
+                                for xi, x in enumerate(grid_input_3d[yi][zi]):
+                                    if x != 'air':
+                                        self.grid_output[(self.pos_input[0][1] + yi - self.grid_origin_y, self.pos_input[0][2] + zi - self.grid_origin_z, self.pos_input[0][0] + xi - self.grid_origin_x)] = (self.pos_input[0][0] + xi - self.grid_origin_x, self.pos_input[0][1] + yi - self.grid_origin_y, self.pos_input[0][2] + zi - self.grid_origin_z, x)
+
+                        self.state_output[tuple(self.pos_input[0])] = [self.pos_input[0][0], self.pos_input[0][1], self.pos_input[0][2], 1]
+
+                        np.save('output/state_output_temp.npy', self.state_output)
+                        try:
+                            os.replace('output/state_output_temp.npy', 'output/state_output.npy')
+                        except PermissionError:
+                            pass
+
+                        np.save('output/edge_output_temp.npy', self.edges_output)
+                        try:
+                            os.replace('output/edge_output_temp.npy', 'output/edge_output.npy')
+                        except PermissionError:
+                            pass
+
+                        np.save('output/grid_output_temp.npy', self.grid_output)
+                        try:
+                            os.replace('output/grid_output_temp.npy', 'output/grid_output.npy')
+                        except PermissionError:
+                            pass
                         print('Action Plan Length:', len(self.action_plan))
                         return self.action_plan.pop(0)
+
 
         else:
             new_pos_input = np.asarray([(math.floor(pos_input[0]), math.floor(pos_input[1]), math.floor(pos_input[2]))])
@@ -193,6 +250,16 @@ class Airis:
                     print('Actual', self.grid_input[index])
                     print('Map', hold[index])
                     raise Exception
+
+            try:
+                self.state_output[tuple(self.pos_input[0])][3] = 5
+            except KeyError:
+                pass
+
+            try:
+                self.edges_output[(tuple(self.pos_input[0]), tuple(new_pos_input[0]))][6] = 5
+            except KeyError:
+                pass
 
             self.grid_map[self.map_origin_y + new_pos_input[0][1] - self.grid_origin_y:self.map_origin_y + new_pos_input[0][1] + self.grid_origin_y + 1, self.map_origin_z + new_pos_input[0][2] - self.grid_origin_z:self.map_origin_z + new_pos_input[0][2] + self.grid_origin_z + 1, self.map_origin_x + new_pos_input[0][0] - self.grid_origin_x:self.map_origin_x + new_pos_input[0][0] + self.grid_origin_x + 1] = new_grid_3d
 
@@ -345,11 +412,16 @@ class Airis:
         check_states.add(self.states[0][2])
         path_heap = dict()
         goal_state = None
+        heap_iter = 1
         self.prediction_state_graph = self.state_graph
 
         while not goal_reached:
             # Check for missing outgoing edges in current state
             current_state = self.states[0][2]
+            try:
+                self.state_output[tuple(current_state.pos_input[0])][3] = 2
+            except KeyError:
+                pass
             # print('current state pos info', current_state.pos_input, 'grid info', current_state.grid_input)
             goal_compare = self.compare(current_state.pos_input, current_state.grid_input)
             current_state.compare = goal_compare
@@ -366,7 +438,7 @@ class Airis:
                     print('Action not yet tried, trying...')
                     new_state = self.predict(act, current_state)
                     goal_state = new_state
-                    path_heap[goal_state] = [(step + 1, time(), act, current_state)]
+                    path_heap[goal_state] = [(step + 1, heap_iter, act, current_state)]
                     goal_reached = True
                     current_state.outgoing_edges[act] = [deepcopy(new_state.applied_rules_pos), deepcopy(new_state.applied_rules_grid), new_state.confidence, 0, new_state, deepcopy(new_state.all_rules_pos), deepcopy(new_state.all_rules_grid)]
                     break
@@ -377,6 +449,9 @@ class Airis:
                     if check[3] < act_updates:
                         update = True
                     if not update:
+                        self.edges_output[(tuple(current_state.pos_input[0]), tuple(check[4].pos_input[0]))] = [current_state.pos_input[0][0], current_state.pos_input[0][1], current_state.pos_input[0][2], check[4].pos_input[0][0], check[4].pos_input[0][1], check[4].pos_input[0][2], 3]
+                        if check[2] != 1:
+                            self.edges_output[(tuple(current_state.pos_input[0]), tuple(check[4].pos_input[0]))][6] = 0
                         try:
                             if (check[4].pos_input[0][0], check[4].pos_input[0][1], check[4].pos_input[0][2]) in self.explored_states:
                                 real_state = True
@@ -385,16 +460,20 @@ class Airis:
 
                         if real_state:
                             if check[4] not in check_states:
-                                heapq.heappush(self.states, (check[4].compare + step + 1, time(), check[4], act, current_state))
+                                heapq.heappush(self.states, (check[4].compare + step + 1, heap_iter, check[4], act, current_state))
                                 check_states.add(check[4])
+                                heap_iter += 1
                         else:
                             if check[4] not in check_states:
-                                heapq.heappush(goal_heap, (check[4].compare, check[2], step + 1, time(), check[4], act, current_state))
+                                heapq.heappush(goal_heap, (check[4].compare, check[2], step + 1, heap_iter, check[4], act, current_state))
+                                heap_iter += 1
 
                         try:
-                            heapq.heappush(path_heap[check[4]], (step + 1, time(), act, current_state))
+                            heapq.heappush(path_heap[check[4]], (step + 1, heap_iter, act, current_state))
+                            heap_iter += 1
                         except KeyError:
-                            path_heap[check[4]] = [(step + 1, time(), act, current_state)]
+                            path_heap[check[4]] = [(step + 1, heap_iter, act, current_state)]
+                            heap_iter += 1
 
                         # print('Up-to-date Edge found:', current_state, act, check[4], check)
                 except KeyError:
@@ -430,6 +509,10 @@ class Airis:
                     target_state.compare = self.compare(target_state.pos_input, target_state.grid_input)
 
                     current_state.outgoing_edges[act] = [deepcopy(new_state.applied_rules_pos), deepcopy(new_state.applied_rules_grid), new_state.confidence, act_updates, target_state, deepcopy(new_state.all_rules_pos), deepcopy(new_state.all_rules_grid)]
+
+                    self.edges_output[(tuple(current_state.pos_input[0]), tuple(target_state.pos_input[0]))] = [current_state.pos_input[0][0], current_state.pos_input[0][1], current_state.pos_input[0][2], target_state.pos_input[0][0], target_state.pos_input[0][1], target_state.pos_input[0][2], 3]
+                    if new_state.confidence != 1:
+                        self.edges_output[(tuple(current_state.pos_input[0]), tuple(target_state.pos_input[0]))][6] = 0
                     # try:
                     #     target_state.incoming_edges[act].append(current_state)
                     # except KeyError:
@@ -442,16 +525,20 @@ class Airis:
 
                     if real_state:
                         if target_state not in check_states:
-                            heapq.heappush(self.states, (target_state.compare + step + 1, time(), target_state, act, current_state))
+                            heapq.heappush(self.states, (target_state.compare + step + 1, heap_iter, target_state, act, current_state))
                             check_states.add(target_state)
+                            heap_iter += 1
                     else:
                         if target_state not in check_states:
-                            heapq.heappush(goal_heap, (target_state.compare, new_state.confidence, step + 1, time(), target_state, act, current_state))
+                            heapq.heappush(goal_heap, (target_state.compare, new_state.confidence, step + 1, heap_iter, target_state, act, current_state))
+                            heap_iter += 1
 
                     try:
-                        heapq.heappush(path_heap[target_state], (step + 1, time(), act, current_state))
+                        heapq.heappush(path_heap[target_state], (step + 1, heap_iter, act, current_state))
+                        heap_iter += 1
                     except KeyError:
-                        path_heap[target_state] = [(step + 1, time(), act, current_state)]
+                        path_heap[target_state] = [(step + 1, heap_iter, act, current_state)]
+                        heap_iter += 1
                     # print('New Edge', current_state, act, target_state, current_state.outgoing_edges[act][2])
 
             add_state = heapq.heappop(self.states)[2]
@@ -507,6 +594,11 @@ class Airis:
                 heapq.heappop(goal_heap)
                 goal_state = goal_heap[0][4]
             self.action_plan.insert(0, (goal_heap[0][5], goal_heap[0][4], goal_heap[0][1], (goal_heap[0][6].outgoing_edges[goal_heap[0][5]][0], goal_heap[0][6].outgoing_edges[goal_heap[0][5]][1], goal_heap[0][6].outgoing_edges[goal_heap[0][5]][5], goal_heap[0][6].outgoing_edges[goal_heap[0][5]][6])))
+            try:
+                self.state_output[tuple(goal_state.pos_input[0])][3] = 4
+            except KeyError:
+                pass
+            self.edges_output[(tuple(goal_heap[0][6].pos_input[0]), tuple(goal_state.pos_input[0]))] = [goal_heap[0][6].pos_input[0][0], goal_heap[0][6].pos_input[0][1], goal_heap[0][6].pos_input[0][2], goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 1]
             goal_state = goal_heap[0][6]
 
         while goal_state != original_state:
@@ -515,6 +607,17 @@ class Airis:
             print('Previous State', path_heap[goal_state][0][3])
             print('Original State', original_state)
             self.action_plan.insert(0, (path_heap[goal_state][0][2], goal_state, path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][2], (path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][0], path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][1], path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][5], path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][6])))
+            try:
+                self.state_output[tuple(goal_state.pos_input[0])][3] = 0
+            except KeyError:
+                pass
+            try:
+                if path_heap[goal_state][0][3].confidence == 1:
+                    self.edges_output[(tuple(path_heap[goal_state][0][3].pos_input[0]), tuple(goal_state.pos_input[0]))][6] = 4 #(path_heap[goal_state][0][3].pos_input[0][0], path_heap[goal_state][0][3].pos_input[0][1], path_heap[goal_state][0][3].pos_input[0][2], goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 4)
+                else:
+                    self.edges_output[(tuple(path_heap[goal_state][0][3].pos_input[0]), tuple(goal_state.pos_input[0]))][6] = 1
+            except KeyError:
+                pass
             goal_state = path_heap[goal_state][0][3]
             print('New goal state', goal_state)
 
@@ -1235,11 +1338,11 @@ if __name__ == '__main__':
 
     rob.sendCommand('chat /gamemode creative')
     rob.sendCommand('chat /effect give @s minecraft:night_vision infinite 0 true')
-    sleep(60)
+    sleep(10)
     rob.sendCommand('chat /tp 206 64 119')
     rob.sendCommand('chat /difficulty peaceful')
 
-    sleep(5)
+    sleep(10)
     print('starting!')
 
     airis.lookDir(rob, 0, 0)
