@@ -97,14 +97,14 @@ class Airis:
 
             hold = deepcopy(self.grid_map[self.map_origin_y + self.pos_input[0][1] - self.grid_origin_y:self.map_origin_y + self.pos_input[0][1] + self.grid_origin_y + 1, self.map_origin_z + self.pos_input[0][2] - self.grid_origin_z:self.map_origin_z + self.pos_input[0][2] + self.grid_origin_z + 1, self.map_origin_x + self.pos_input[0][0] - self.grid_origin_x:self.map_origin_x + self.pos_input[0][0] + self.grid_origin_x + 1])
             hold = hold.flatten()
-            map_mismatch = [i for i, v in enumerate(hold) if v != self.grid_input[i] and v != '']
-            if map_mismatch:
-                for index in map_mismatch:
-                    print('Map Mismatch!')
-                    print('Index', index)
-                    print('Actual', self.grid_input[index])
-                    print('Map', hold[index])
-                    raise Exception
+            # map_mismatch = [i for i, v in enumerate(hold) if v != self.grid_input[i] and v != '']
+            # if map_mismatch:
+            #     for index in map_mismatch:
+            #         print('Map Mismatch!')
+            #         print('Index', index)
+            #         print('Actual', self.grid_input[index])
+            #         print('Map', hold[index])
+            #     raise Exception
 
             self.grid_map[self.map_origin_y + self.pos_input[0][1] - self.grid_origin_y:self.map_origin_y + self.pos_input[0][1] + self.grid_origin_y + 1, self.map_origin_z + self.pos_input[0][2] - self.grid_origin_z:self.map_origin_z + self.pos_input[0][2] + self.grid_origin_z + 1, self.map_origin_x + self.pos_input[0][0] - self.grid_origin_x:self.map_origin_x + self.pos_input[0][0] + self.grid_origin_x + 1] = grid_input_3d
 
@@ -125,17 +125,19 @@ class Airis:
                 prior_state = State(self.pos_input, self.grid_input)
                 self.states = []
                 try:
-                    prior_state = self.state_graph[(self.pos_input[0][0], self.pos_input[0][1], self.pos_input[0][2], prior_state.state_hash)]
+                    prior_state = self.state_graph[(self.pos_input[0][0], self.pos_input[0][1], self.pos_input[0][2])]
+                    prior_state.pos_input = self.pos_input
+                    prior_state.grid_input = self.grid_input
                     if prior_state.pos_input[0][0] != self.pos_input[0][0] or prior_state.pos_input[0][1] != self.pos_input[0][1] or prior_state.pos_input[0][2] != self.pos_input[0][2]:
                         print('Break point 1', prior_state, prior_state.pos_input, self.pos_input)
                         raise Exception
-                    heapq.heappush(self.states, (self.compare(self.pos_input, self.grid_input), 0, self.state_graph[(self.pos_input[0][0], self.pos_input[0][1], self.pos_input[0][2], prior_state.state_hash)], None, prior_state))
+                    heapq.heappush(self.states, (self.compare(self.pos_input, self.grid_input), 0, self.state_graph[(self.pos_input[0][0], self.pos_input[0][1], self.pos_input[0][2])], None, prior_state))
                 except KeyError:
-                    self.state_graph[(self.pos_input[0][0], self.pos_input[0][1], self.pos_input[0][2], prior_state.state_hash)] = prior_state
+                    self.state_graph[(self.pos_input[0][0], self.pos_input[0][1], self.pos_input[0][2])] = prior_state
                     if prior_state.pos_input[0][0] != self.pos_input[0][0] or prior_state.pos_input[0][1] != self.pos_input[0][1] or prior_state.pos_input[0][2] != self.pos_input[0][2]:
                         print('Break point 2', prior_state, prior_state.pos_input, self.pos_input)
                         raise Exception
-                    heapq.heappush(self.states, (self.compare(self.pos_input, self.grid_input), 0, self.state_graph[(self.pos_input[0][0], self.pos_input[0][1], self.pos_input[0][2], prior_state.state_hash)], None, prior_state))
+                    heapq.heappush(self.states, (self.compare(self.pos_input, self.grid_input), 0, self.state_graph[(self.pos_input[0][0], self.pos_input[0][1], self.pos_input[0][2])], None, prior_state))
 
                 self.explored_states.add(tuple(self.pos_input[0]))
                 # print('State Graph')
@@ -242,14 +244,14 @@ class Airis:
 
             hold = deepcopy(self.grid_map[self.map_origin_y + new_pos_input[0][1] - self.grid_origin_y:self.map_origin_y + new_pos_input[0][1] + self.grid_origin_y + 1, self.map_origin_z + new_pos_input[0][2] - self.grid_origin_z:self.map_origin_z + new_pos_input[0][2] + self.grid_origin_z + 1, self.map_origin_x + new_pos_input[0][0] - self.grid_origin_x:self.map_origin_x + new_pos_input[0][0] + self.grid_origin_x + 1])
             hold = hold.flatten()
-            map_mismatch = [i for i, v in enumerate(hold) if v != new_grid_input[i] and v != '']
-            if map_mismatch:
-                for index in map_mismatch:
-                    print('Map Mismatch!')
-                    print('Index', index)
-                    print('Actual', self.grid_input[index])
-                    print('Map', hold[index])
-                    raise Exception
+            # map_mismatch = [i for i, v in enumerate(hold) if v != new_grid_input[i] and v != '']
+            # if map_mismatch:
+            #     for index in map_mismatch:
+            #         print('Map Mismatch!')
+            #         print('Index', index)
+            #         print('Actual', self.grid_input[index])
+            #         print('Map', hold[index])
+            #         raise Exception
 
             try:
                 self.state_output[tuple(self.pos_input[0])][3] = 5
@@ -266,9 +268,11 @@ class Airis:
             post_state = State(new_pos_input, new_grid_input)
             self.states = []
             try:
-                post_state = self.state_graph[(new_pos_input[0][0], new_pos_input[0][1], new_pos_input[0][2], post_state.state_hash)]
+                post_state = self.state_graph[(new_pos_input[0][0], new_pos_input[0][1], new_pos_input[0][2])]
+                post_state.pos_input = new_pos_input
+                post_state.grid_input = new_grid_input
             except KeyError:
-                self.state_graph[(new_pos_input[0][0], new_pos_input[0][1], new_pos_input[0][2], post_state.state_hash)] = post_state
+                self.state_graph[(new_pos_input[0][0], new_pos_input[0][1], new_pos_input[0][2])] = post_state
 
             self.explored_states.add(tuple(new_pos_input[0]))
 
@@ -461,11 +465,14 @@ class Airis:
                         if real_state:
                             if check[4] not in check_states:
                                 heapq.heappush(self.states, (check[4].compare + step + 1, heap_iter, check[4], act, current_state))
+                                if check[2] != 1:
+                                    heapq.heappush(goal_heap, (check[4].compare, check[2], step + 1, heap_iter, check[4], act, current_state))
                                 check_states.add(check[4])
                                 heap_iter += 1
                         else:
                             if check[4] not in check_states:
-                                heapq.heappush(goal_heap, (check[4].compare, check[2], step + 1, heap_iter, check[4], act, current_state))
+                                if check[2] != 1:
+                                    heapq.heappush(goal_heap, (check[4].compare, check[2], step + 1, heap_iter, check[4], act, current_state))
                                 heap_iter += 1
 
                         try:
@@ -482,12 +489,11 @@ class Airis:
                 if update:
                     new_state = self.predict(act, current_state)
                     target_state = new_state
-                    if (new_state.pos_input[0][0], new_state.pos_input[0][1], new_state.pos_input[0][2], new_state.state_hash) not in self.prediction_state_graph.keys():
+                    if (new_state.pos_input[0][0], new_state.pos_input[0][1], new_state.pos_input[0][2]) not in self.prediction_state_graph.keys():
                         if (new_state.pos_input[0][0], new_state.pos_input[0][1], new_state.pos_input[0][2]) in self.explored_states:
                             print('Predicted state not in state graph, but it should be!')
                             print('pos', new_state.pos_input)
                             print('===============================')
-                            print('Predicted Hash', new_state.state_hash)
                             print('Predicted Grid', new_state.grid_input)
                             print('+++++++++++++++++++++++++++++++')
                             for item in self.prediction_state_graph.keys():
@@ -496,13 +502,13 @@ class Airis:
                                     print('State graph Grid', self.prediction_state_graph[item].grid_input)
 
                             raise Exception
-                        self.prediction_state_graph[(new_state.pos_input[0][0], new_state.pos_input[0][1], new_state.pos_input[0][2], new_state.state_hash)] = new_state
-                        # print('predicted state not in graph, adding', new_state, new_state.pos_input, 'to key', (new_state.pos_input[0][0], new_state.pos_input[0][1], new_state.pos_input[0][2], new_state.state_hash))
+                        self.prediction_state_graph[(new_state.pos_input[0][0], new_state.pos_input[0][1], new_state.pos_input[0][2])] = new_state
+                        # print('predicted state not in graph, adding', new_state, new_state.pos_input, 'to key', (new_state.pos_input[0][0], new_state.pos_input[0][1], new_state.pos_input[0][2]))
                     else:
-                        target_state = self.prediction_state_graph[(new_state.pos_input[0][0], new_state.pos_input[0][1], new_state.pos_input[0][2], new_state.state_hash)]
+                        target_state = self.prediction_state_graph[(new_state.pos_input[0][0], new_state.pos_input[0][1], new_state.pos_input[0][2])]
                         if target_state.pos_input[0][0] != new_state.pos_input[0][0] or target_state.pos_input[0][1] != new_state.pos_input[0][1] or target_state.pos_input[0][2] != new_state.pos_input[0][2]:
                             print('Break point 3', target_state, target_state.pos_input, new_state.pos_input)
-                            print('Error in key', (new_state.pos_input[0][0], new_state.pos_input[0][1], new_state.pos_input[0][2], new_state.state_hash))
+                            print('Error in key', (new_state.pos_input[0][0], new_state.pos_input[0][1], new_state.pos_input[0][2]))
                             raise Exception
                         # print('predicted state in graph, replacing with existing', target_state, target_state.pos_input)
 
@@ -526,11 +532,14 @@ class Airis:
                     if real_state:
                         if target_state not in check_states:
                             heapq.heappush(self.states, (target_state.compare + step + 1, heap_iter, target_state, act, current_state))
+                            if new_state.confidence != 1:
+                                heapq.heappush(goal_heap, (target_state.compare, new_state.confidence, step + 1, heap_iter, target_state, act, current_state))
                             check_states.add(target_state)
                             heap_iter += 1
                     else:
                         if target_state not in check_states:
-                            heapq.heappush(goal_heap, (target_state.compare, new_state.confidence, step + 1, heap_iter, target_state, act, current_state))
+                            if new_state.confidence != 1:
+                                heapq.heappush(goal_heap, (target_state.compare, new_state.confidence, step + 1, heap_iter, target_state, act, current_state))
                             heap_iter += 1
 
                     try:
@@ -545,48 +554,48 @@ class Airis:
             if not self.states:
                 break
 
-        if (60, 62, 16) in self.explored_states or (60, 63 , 16) in self.explored_states:
-            if self.pos_input[0][1] < 62:
-                find = False
-                find1 = 'Have not yet explored 60 62 16'
-                find2 = 'Have not yet explored 60 63 16'
-                if (60, 62, 16) in self.explored_states:
-                    find1 = 'Explored 60 62 16'
-                    for key in self.prediction_state_graph.keys():
-                        if key[0] == 60 and key[1] == 62 and key[2] == 16:
-                            error_state = self.prediction_state_graph[key]
-                            if error_state not in check_states and len(check_states) > 5:
-                                find1 = 'Cannot find 60 62 16'
-                            else:
-                                find = True
-                                find1 = 'Found 60 62 16'
-                                break
-
-                if (60, 63, 16) in self.explored_states:
-                    find2 = 'Explored 60 63 16'
-                    for key in self.prediction_state_graph.keys():
-                        if key[0] == 60 and key[1] == 63 and key[2] == 16:
-                            error_state = self.prediction_state_graph[key]
-                            if error_state not in check_states and len(check_states) > 5:
-                                find2 = 'Cannot find 60 63 16'
-                            else:
-                                find = True
-                                find2 = 'Found 60 63 16'
-                                break
-
-                if not find:
-                    for item in check_states:
-                        print('State Pos', item.pos_input[0], 'state', item)
-                        for edge_act in item.outgoing_edges.keys():
-                            print('-', edge_act)
-                            for i, data in enumerate(item.outgoing_edges[edge_act]):
-                                print('--', i, '|', data)
-                                if i == 4:
-                                    if (data.pos_input[0][0], data.pos_input[0][1], data.pos_input[0][2]) in self.explored_states:
-                                        print('--- Target state in explored states', data.pos_input[0][0], data.pos_input[0][1], data.pos_input[0][2])
-                    print(find1)
-                    print(find2)
-                    raise Exception
+        # if (60, 62, 16) in self.explored_states or (60, 63 , 16) in self.explored_states:
+        #     if self.pos_input[0][1] < 62:
+        #         find = False
+        #         find1 = 'Have not yet explored 60 62 16'
+        #         find2 = 'Have not yet explored 60 63 16'
+        #         if (60, 62, 16) in self.explored_states:
+        #             find1 = 'Explored 60 62 16'
+        #             for key in self.prediction_state_graph.keys():
+        #                 if key[0] == 60 and key[1] == 62 and key[2] == 16:
+        #                     error_state = self.prediction_state_graph[key]
+        #                     if error_state not in check_states and len(check_states) > 5:
+        #                         find1 = 'Cannot find 60 62 16'
+        #                     else:
+        #                         find = True
+        #                         find1 = 'Found 60 62 16'
+        #                         break
+        #
+        #         if (60, 63, 16) in self.explored_states:
+        #             find2 = 'Explored 60 63 16'
+        #             for key in self.prediction_state_graph.keys():
+        #                 if key[0] == 60 and key[1] == 63 and key[2] == 16:
+        #                     error_state = self.prediction_state_graph[key]
+        #                     if error_state not in check_states and len(check_states) > 5:
+        #                         find2 = 'Cannot find 60 63 16'
+        #                     else:
+        #                         find = True
+        #                         find2 = 'Found 60 63 16'
+        #                         break
+        #
+        #         if not find:
+        #             for item in check_states:
+        #                 print('State Pos', item.pos_input[0], 'state', item)
+        #                 for edge_act in item.outgoing_edges.keys():
+        #                     print('-', edge_act)
+        #                     for i, data in enumerate(item.outgoing_edges[edge_act]):
+        #                         print('--', i, '|', data)
+        #                         if i == 4:
+        #                             if (data.pos_input[0][0], data.pos_input[0][1], data.pos_input[0][2]) in self.explored_states:
+        #                                 print('--- Target state in explored states', data.pos_input[0][0], data.pos_input[0][1], data.pos_input[0][2])
+        #             print(find1)
+        #             print(find2)
+        #             raise Exception
 
         if not goal_reached:
             goal_state = goal_heap[0][4]
@@ -604,7 +613,7 @@ class Airis:
         while goal_state != original_state:
             #Action Plan (Action, resulting state, confidence, (applied_rules pos, grid, all pos, all grid) )
             print('Adding Goal State to action plan', goal_state)
-            print('Previous State', path_heap[goal_state][0][3])
+            # print('Previous State', path_heap[goal_state][0][3])
             print('Original State', original_state)
             self.action_plan.insert(0, (path_heap[goal_state][0][2], goal_state, path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][2], (path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][0], path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][1], path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][5], path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][6])))
             try:
@@ -1338,7 +1347,7 @@ if __name__ == '__main__':
 
     rob.sendCommand('chat /gamemode creative')
     rob.sendCommand('chat /effect give @s minecraft:night_vision infinite 0 true')
-    sleep(10)
+    sleep(60)
     rob.sendCommand('chat /tp 206 64 119')
     rob.sendCommand('chat /difficulty peaceful')
 
