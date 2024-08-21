@@ -417,11 +417,21 @@ class Airis:
         path_heap = dict()
         goal_state = None
         heap_iter = 1
-        self.prediction_state_graph = self.state_graph
+        debug_connected = set()
+        debug_checked = set()
+        debug_connected.add(self.states[0][2])
+        print('pre-adding state to debug_connected', self.states[0][2])
+        debug_new = False
 
         while not goal_reached:
             # Check for missing outgoing edges in current state
-            current_state = self.states[0][2]
+            if self.states:
+                current_state = heapq.heappop(self.states)[2]
+                debug_checked.add(current_state)
+                print('adding current state to debug_checked', current_state)
+            else:
+                break
+
             try:
                 self.state_output[tuple(current_state.pos_input[0])][3] = 2
             except KeyError:
@@ -445,6 +455,7 @@ class Airis:
                     path_heap[goal_state] = [(step + 1, heap_iter, act, current_state)]
                     goal_reached = True
                     current_state.outgoing_edges[act] = [deepcopy(new_state.applied_rules_pos), deepcopy(new_state.applied_rules_grid), new_state.confidence, 0, new_state, deepcopy(new_state.all_rules_pos), deepcopy(new_state.all_rules_grid)]
+                    debug_new = True
                     break
                 update = False
                 try:
@@ -456,23 +467,18 @@ class Airis:
                         self.edges_output[(tuple(current_state.pos_input[0]), tuple(check[4].pos_input[0]))] = [current_state.pos_input[0][0], current_state.pos_input[0][1], current_state.pos_input[0][2], check[4].pos_input[0][0], check[4].pos_input[0][1], check[4].pos_input[0][2], 3]
                         if check[2] != 1:
                             self.edges_output[(tuple(current_state.pos_input[0]), tuple(check[4].pos_input[0]))][6] = 0
-                        try:
-                            if (check[4].pos_input[0][0], check[4].pos_input[0][1], check[4].pos_input[0][2]) in self.explored_states:
-                                real_state = True
-                        except KeyError:
-                            pass
 
-                        if real_state:
+                        if check[2] == 1:
+                            debug_connected.add(check[4])
+                            print('adding to debug_connected', check[4])
                             if check[4] not in check_states:
+                                print('state not in check_states, adding to state heap', check[4])
                                 heapq.heappush(self.states, (check[4].compare + step + 1, heap_iter, check[4], act, current_state))
-                                if check[2] != 1:
-                                    heapq.heappush(goal_heap, (check[4].compare, check[2], step + 1, heap_iter, check[4], act, current_state))
                                 check_states.add(check[4])
                                 heap_iter += 1
                         else:
                             if check[4] not in check_states:
-                                if check[2] != 1:
-                                    heapq.heappush(goal_heap, (check[4].compare, check[2], step + 1, heap_iter, check[4], act, current_state))
+                                heapq.heappush(goal_heap, (check[4].compare, check[2], step + 1, heap_iter, check[4], act, current_state))
                                 heap_iter += 1
 
                         try:
@@ -489,23 +495,23 @@ class Airis:
                 if update:
                     new_state = self.predict(act, current_state)
                     target_state = new_state
-                    if (new_state.pos_input[0][0], new_state.pos_input[0][1], new_state.pos_input[0][2]) not in self.prediction_state_graph.keys():
+                    if (new_state.pos_input[0][0], new_state.pos_input[0][1], new_state.pos_input[0][2]) not in self.state_graph.keys():
                         if (new_state.pos_input[0][0], new_state.pos_input[0][1], new_state.pos_input[0][2]) in self.explored_states:
                             print('Predicted state not in state graph, but it should be!')
                             print('pos', new_state.pos_input)
                             print('===============================')
                             print('Predicted Grid', new_state.grid_input)
                             print('+++++++++++++++++++++++++++++++')
-                            for item in self.prediction_state_graph.keys():
+                            for item in self.state_graph.keys():
                                 if item[0] == new_state.pos_input[0][0] and item[1] == new_state.pos_input[0][1] and item[2] == new_state.pos_input[0][2]:
                                     print('State graph Hash', item[3])
-                                    print('State graph Grid', self.prediction_state_graph[item].grid_input)
+                                    print('State graph Grid', self.state_graph[item].grid_input)
 
                             raise Exception
-                        self.prediction_state_graph[(new_state.pos_input[0][0], new_state.pos_input[0][1], new_state.pos_input[0][2])] = new_state
+                        self.state_graph[(new_state.pos_input[0][0], new_state.pos_input[0][1], new_state.pos_input[0][2])] = new_state
                         # print('predicted state not in graph, adding', new_state, new_state.pos_input, 'to key', (new_state.pos_input[0][0], new_state.pos_input[0][1], new_state.pos_input[0][2]))
                     else:
-                        target_state = self.prediction_state_graph[(new_state.pos_input[0][0], new_state.pos_input[0][1], new_state.pos_input[0][2])]
+                        target_state = self.state_graph[(new_state.pos_input[0][0], new_state.pos_input[0][1], new_state.pos_input[0][2])]
                         if target_state.pos_input[0][0] != new_state.pos_input[0][0] or target_state.pos_input[0][1] != new_state.pos_input[0][1] or target_state.pos_input[0][2] != new_state.pos_input[0][2]:
                             print('Break point 3', target_state, target_state.pos_input, new_state.pos_input)
                             print('Error in key', (new_state.pos_input[0][0], new_state.pos_input[0][1], new_state.pos_input[0][2]))
@@ -523,23 +529,18 @@ class Airis:
                     #     target_state.incoming_edges[act].append(current_state)
                     # except KeyError:
                     #     target_state.incoming_edges[act] = [current_state]
-                    try:
-                        if (target_state.pos_input[0][0], target_state.pos_input[0][1], target_state.pos_input[0][2]) in self.explored_states:
-                            real_state = True
-                    except KeyError:
-                        pass
 
-                    if real_state:
+                    if new_state.confidence == 1:
+                        debug_connected.add(target_state)
+                        print('adding to debug_connected', target_state)
                         if target_state not in check_states:
+                            print('state not in check_states, adding to state heap', target_state)
                             heapq.heappush(self.states, (target_state.compare + step + 1, heap_iter, target_state, act, current_state))
-                            if new_state.confidence != 1:
-                                heapq.heappush(goal_heap, (target_state.compare, new_state.confidence, step + 1, heap_iter, target_state, act, current_state))
                             check_states.add(target_state)
                             heap_iter += 1
                     else:
                         if target_state not in check_states:
-                            if new_state.confidence != 1:
-                                heapq.heappush(goal_heap, (target_state.compare, new_state.confidence, step + 1, heap_iter, target_state, act, current_state))
+                            heapq.heappush(goal_heap, (target_state.compare, new_state.confidence, step + 1, heap_iter, target_state, act, current_state))
                             heap_iter += 1
 
                     try:
@@ -550,9 +551,6 @@ class Airis:
                         heap_iter += 1
                     # print('New Edge', current_state, act, target_state, current_state.outgoing_edges[act][2])
 
-            add_state = heapq.heappop(self.states)[2]
-            if not self.states:
-                break
 
         # if (60, 62, 16) in self.explored_states or (60, 63 , 16) in self.explored_states:
         #     if self.pos_input[0][1] < 62:
@@ -630,7 +628,7 @@ class Airis:
             goal_state = path_heap[goal_state][0][3]
             print('New goal state', goal_state)
 
-        print('Number of persistent states', len(self.prediction_state_graph.keys()))
+        print('Number of persistent states', len(self.state_graph.keys()))
 
     # def make_plan(self):
     #     current_state = 0
