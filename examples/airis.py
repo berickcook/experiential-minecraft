@@ -158,6 +158,7 @@ class Airis:
                         self.last_compare = None
                         sleep(1)
                         self.state_history = set()
+                        raise Exception
                     else:
                         self.current_goal = self.given_goal
                         self.last_compare = None
@@ -448,6 +449,7 @@ class Airis:
 
             for act in self.actions:
                 real_state = False
+                compare_adj = 0
                 try:
                     act_updates = self.knowledge['Action Updates'][act]
                 except:
@@ -463,6 +465,8 @@ class Airis:
                 try:
                     check = current_state.outgoing_edges[act]
                     check[4].compare = self.compare(check[4].pos_input, check[4].grid_input)
+                    if (check[4].pos_input[0][0], check[4].pos_input[0][1], check[4].pos_input[0][2]) not in self.explored_states:
+                        check[4].compare -= 1
                     if check[3] < act_updates:
                         update = True
                     if not update:
@@ -521,6 +525,8 @@ class Airis:
                         # print('predicted state in graph, replacing with existing', target_state, target_state.pos_input)
 
                     target_state.compare = self.compare(target_state.pos_input, target_state.grid_input)
+                    if (target_state.pos_input[0][0], target_state.pos_input[0][1], target_state.pos_input[0][2]) not in self.explored_states:
+                        target_state.compare -= 1
 
                     current_state.outgoing_edges[act] = [deepcopy(new_state.applied_rules_pos), deepcopy(new_state.applied_rules_grid), new_state.confidence, act_updates, target_state, deepcopy(new_state.all_rules_pos), deepcopy(new_state.all_rules_grid)]
 
@@ -721,8 +727,8 @@ class Airis:
         for i, c_val in enumerate(self.current_goal[0]):
             if c_val is not None:
                 if i == 1:
-                    if pos_input[0][i] < c_val - 1:
-                        compare_total += abs(c_val - pos_input[0][i]) * 10
+                    if pos_input[0][i] < c_val - 2:
+                        compare_total += abs(c_val - pos_input[0][i]) * 100
                     else:
                         compare_total += abs(c_val - pos_input[0][i])
                 else:
