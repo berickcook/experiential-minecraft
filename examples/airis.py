@@ -73,6 +73,7 @@ class Airis:
         self.grid_output = dict()
         self.state_output = dict()
         self.edges_output = dict()
+        self.sanity_check = set()
         
         self.actions = ['move 0', 'move 45', 'move 90', 'move 135', 'move 180', 'move 225', 'move 270', 'move 315',
                         'jump 0', 'jump 45', 'jump 90', 'jump 135', 'jump 180', 'jump 225', 'jump 270', 'jump 315']
@@ -153,7 +154,7 @@ class Airis:
                 if (self.pos_input[0][0], self.pos_input[0][2]) == (self.current_goal[0][0], self.current_goal[0][2]) and self.pos_input[0][1] >= self.current_goal[0][1] - 1:
                     if np.all(self.current_goal == self.given_goal):
                         # self.goal_achieved = True
-                        rob.sendCommand('chat /tp 206 64 119')
+                        rob.sendCommand('chat /tp 20 100 20')
                         rob.sendCommand('chat Goal Reached! Resetting to initial position...')
                         self.last_compare = None
                         sleep(1)
@@ -203,6 +204,8 @@ class Airis:
                             except PermissionError:
                                 pass
                             print('Action Plan Length:', len(self.action_plan))
+                            if len(self.action_plan) == 1:
+                                self.sanity_check.add((self.action_plan[0][0], self.action_plan[0][1]))
                             return self.action_plan.pop(0)
                     else:
                         # print('Action Plan:', self.action_plan)
@@ -458,6 +461,7 @@ class Airis:
                     goal_state = new_state
                     path_heap[goal_state] = [(step + 1, heap_iter, act, current_state)]
                     goal_reached = True
+                    goal_heap.append('New action')
                     current_state.outgoing_edges[act] = [deepcopy(new_state.applied_rules_pos), deepcopy(new_state.applied_rules_grid), new_state.confidence, 0, new_state, deepcopy(new_state.all_rules_pos), deepcopy(new_state.all_rules_grid)]
                     debug_new = True
                     break
@@ -467,6 +471,10 @@ class Airis:
                     check[4].compare = self.compare(check[4].pos_input, check[4].grid_input)
                     if (check[4].pos_input[0][0], check[4].pos_input[0][1], check[4].pos_input[0][2]) not in self.explored_states:
                         check[4].compare -= 1
+                    new_count = np.count_nonzero(check[4].grid_input == '')
+                    check[4].compare -= new_count
+                    water_count = np.count_nonzero(check[4].grid_input == 'water')
+                    check[4].compare += water_count * 10
                     if check[3] < act_updates:
                         update = True
                     if not update:
@@ -527,6 +535,10 @@ class Airis:
                     target_state.compare = self.compare(target_state.pos_input, target_state.grid_input)
                     if (target_state.pos_input[0][0], target_state.pos_input[0][1], target_state.pos_input[0][2]) not in self.explored_states:
                         target_state.compare -= 1
+                    new_count = np.count_nonzero(target_state.grid_input == '')
+                    target_state.compare -= new_count
+                    water_count = np.count_nonzero(target_state.grid_input == 'water')
+                    target_state.compare += water_count * 10
 
                     current_state.outgoing_edges[act] = [deepcopy(new_state.applied_rules_pos), deepcopy(new_state.applied_rules_grid), new_state.confidence, act_updates, target_state, deepcopy(new_state.all_rules_pos), deepcopy(new_state.all_rules_grid)]
 
@@ -603,39 +615,46 @@ class Airis:
         #             print(find2)
         #             raise Exception
 
-        if not goal_reached:
-            goal_state = goal_heap[0][4]
-            while goal_state == original_state:
-                heapq.heappop(goal_heap)
+        if goal_heap:
+            if not goal_reached:
+                while goal_heap and (goal_heap[0][5], goal_heap[0][4]) in self.sanity_check:
+                    heapq.heappop(goal_heap)
                 goal_state = goal_heap[0][4]
-            self.action_plan.insert(0, (goal_heap[0][5], goal_heap[0][4], goal_heap[0][1], (goal_heap[0][6].outgoing_edges[goal_heap[0][5]][0], goal_heap[0][6].outgoing_edges[goal_heap[0][5]][1], goal_heap[0][6].outgoing_edges[goal_heap[0][5]][5], goal_heap[0][6].outgoing_edges[goal_heap[0][5]][6])))
-            try:
-                self.state_output[tuple(goal_state.pos_input[0])][3] = 4
-            except KeyError:
-                pass
-            self.edges_output[(tuple(goal_heap[0][6].pos_input[0]), tuple(goal_state.pos_input[0]))] = [goal_heap[0][6].pos_input[0][0], goal_heap[0][6].pos_input[0][1], goal_heap[0][6].pos_input[0][2], goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 1]
-            goal_state = goal_heap[0][6]
+                while goal_state == original_state:
+                    heapq.heappop(goal_heap)
+                    goal_state = goal_heap[0][4]
+                self.action_plan.insert(0, (goal_heap[0][5], goal_heap[0][4], goal_heap[0][1], (goal_heap[0][6].outgoing_edges[goal_heap[0][5]][0], goal_heap[0][6].outgoing_edges[goal_heap[0][5]][1], goal_heap[0][6].outgoing_edges[goal_heap[0][5]][5], goal_heap[0][6].outgoing_edges[goal_heap[0][5]][6])))
+                try:
+                    self.state_output[tuple(goal_state.pos_input[0])][3] = 4
+                except KeyError:
+                    pass
+                self.edges_output[(tuple(goal_heap[0][6].pos_input[0]), tuple(goal_state.pos_input[0]))] = [goal_heap[0][6].pos_input[0][0], goal_heap[0][6].pos_input[0][1], goal_heap[0][6].pos_input[0][2], goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 1]
+                goal_state = goal_heap[0][6]
 
-        if not at_goal:
-            while goal_state != original_state:
-                #Action Plan (Action, resulting state, confidence, (applied_rules pos, grid, all pos, all grid) )
-                print('Adding Goal State to action plan', goal_state)
-                # print('Previous State', path_heap[goal_state][0][3])
-                print('Original State', original_state)
-                self.action_plan.insert(0, (path_heap[goal_state][0][2], goal_state, path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][2], (path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][0], path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][1], path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][5], path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][6])))
-                try:
-                    self.state_output[tuple(goal_state.pos_input[0])][3] = 0
-                except KeyError:
-                    pass
-                try:
-                    if path_heap[goal_state][0][3].confidence == 1:
-                        self.edges_output[(tuple(path_heap[goal_state][0][3].pos_input[0]), tuple(goal_state.pos_input[0]))][6] = 4 #(path_heap[goal_state][0][3].pos_input[0][0], path_heap[goal_state][0][3].pos_input[0][1], path_heap[goal_state][0][3].pos_input[0][2], goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 4)
-                    else:
-                        self.edges_output[(tuple(path_heap[goal_state][0][3].pos_input[0]), tuple(goal_state.pos_input[0]))][6] = 1
-                except KeyError:
-                    pass
-                goal_state = path_heap[goal_state][0][3]
-                print('New goal state', goal_state)
+            if not at_goal:
+                while goal_state != original_state:
+                    #Action Plan (Action, resulting state, confidence, (applied_rules pos, grid, all pos, all grid) )
+                    print('Adding Goal State to action plan', goal_state)
+                    # print('Previous State', path_heap[goal_state][0][3])
+                    print('Original State', original_state)
+                    self.action_plan.insert(0, (path_heap[goal_state][0][2], goal_state, path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][2], (path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][0], path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][1], path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][5], path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][6])))
+                    try:
+                        self.state_output[tuple(goal_state.pos_input[0])][3] = 0
+                    except KeyError:
+                        pass
+                    try:
+                        if path_heap[goal_state][0][3].confidence == 1:
+                            self.edges_output[(tuple(path_heap[goal_state][0][3].pos_input[0]), tuple(goal_state.pos_input[0]))][6] = 4 #(path_heap[goal_state][0][3].pos_input[0][0], path_heap[goal_state][0][3].pos_input[0][1], path_heap[goal_state][0][3].pos_input[0][2], goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 4)
+                        else:
+                            self.edges_output[(tuple(path_heap[goal_state][0][3].pos_input[0]), tuple(goal_state.pos_input[0]))][6] = 1
+                    except KeyError:
+                        pass
+                    goal_state = path_heap[goal_state][0][3]
+                    print('New goal state', goal_state)
+
+        else:
+            rob.sendCommand("chat Can't explore further, teleporting...")
+            rob.sendCommand('chat /tp 20 100 20')
 
         print('Number of persistent states', len(self.state_graph.keys()))
 
@@ -733,6 +752,8 @@ class Airis:
                         compare_total += abs(c_val - pos_input[0][i])
                 else:
                     compare_total += abs(c_val - pos_input[0][i])
+
+        compare_total = 1000
 
         return compare_total
 
@@ -1354,8 +1375,11 @@ if __name__ == '__main__':
 
     rob.sendCommand('chat /gamemode creative')
     rob.sendCommand('chat /effect give @s minecraft:night_vision infinite 0 true')
-    sleep(60)
-    rob.sendCommand('chat /tp 206 64 119')
+    # rob.sendCommand('chat /tp 206 64 119')
+    sleep(5)
+    rob.sendCommand('chat /kill @e[type=!minecraft:player]')
+    sleep(30)
+    # rob.sendCommand('chat /tp 206 64 119')
     rob.sendCommand('chat /difficulty peaceful')
 
     sleep(10)
@@ -1370,6 +1394,13 @@ if __name__ == '__main__':
     while not airis.goal_achieved:
         stats = [mc.getFullStat(key) for key in fullStatKeys]
         stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), 0]  # round(stats[4]) % 360]
+        if math.floor(stats[0]) > 490 or math.floor(stats[0]) < -490 or math.floor(stats[2]) > 490 or math.floor(stats[2]) < -490:
+            rob.sendCommand('chat /tp 20 100 20')
+            rob.sendCommand('chat Reached boundary of test area, teleporting...')
+            sleep(5)
+            stats = [mc.getFullStat(key) for key in fullStatKeys]
+            stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), 0]  # round(stats[4]) % 360]
+
         try:
             action, state, confidence, applied_rules = airis.capture_input(stats, grid, None, None, True, None, None)
             print('performing action', action, 'and predicting state', state)
