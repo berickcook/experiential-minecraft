@@ -154,7 +154,7 @@ class Airis:
                 if (self.pos_input[0][0], self.pos_input[0][2]) == (self.current_goal[0][0], self.current_goal[0][2]) and self.pos_input[0][1] >= self.current_goal[0][1] - 1:
                     if np.all(self.current_goal == self.given_goal):
                         # self.goal_achieved = True
-                        rob.sendCommand('chat /tp 20 100 20')
+                        rob.sendCommand('chat /tp 206 64 119')
                         rob.sendCommand('chat Goal Reached! Resetting to initial position...')
                         self.last_compare = None
                         sleep(1)
@@ -418,6 +418,7 @@ class Airis:
             at_goal = True
         step = 0
         goal_heap = []
+        goal_heap2 = []
         check_states = set()
         check_states.add(self.states[0][2])
         path_heap = dict()
@@ -450,6 +451,8 @@ class Airis:
                 goal_state = current_state
                 break
 
+            step += 1
+
             for act in self.actions:
                 real_state = False
                 compare_adj = 0
@@ -469,12 +472,12 @@ class Airis:
                 try:
                     check = current_state.outgoing_edges[act]
                     check[4].compare = self.compare(check[4].pos_input, check[4].grid_input)
-                    if (check[4].pos_input[0][0], check[4].pos_input[0][1], check[4].pos_input[0][2]) not in self.explored_states:
-                        check[4].compare -= 1
+                    # if (check[4].pos_input[0][0], check[4].pos_input[0][1], check[4].pos_input[0][2]) not in self.explored_states:
+                    #     check[4].compare -= 1
                     new_count = np.count_nonzero(check[4].grid_input == '')
-                    check[4].compare -= new_count
-                    water_count = np.count_nonzero(check[4].grid_input == 'water')
-                    check[4].compare += water_count * 10
+                    # check[4].compare -= new_count
+                    # water_count = np.count_nonzero(check[4].grid_input == 'water')
+                    # check[4].compare += water_count * 10
                     if check[3] < act_updates:
                         update = True
                     if not update:
@@ -492,7 +495,10 @@ class Airis:
                                 heap_iter += 1
                         else:
                             if check[4] not in check_states:
-                                heapq.heappush(goal_heap, (check[4].compare, check[2], step + 1, heap_iter, check[4], act, current_state))
+                                if new_count > 0:
+                                    heapq.heappush(goal_heap, (check[4].compare, -check[2], step + 1, heap_iter, check[4], act, current_state))
+                                else:
+                                    heapq.heappush(goal_heap2, (check[4].compare, -check[2], step + 1, heap_iter, check[4], act, current_state))
                                 heap_iter += 1
 
                         try:
@@ -533,12 +539,12 @@ class Airis:
                         # print('predicted state in graph, replacing with existing', target_state, target_state.pos_input)
 
                     target_state.compare = self.compare(target_state.pos_input, target_state.grid_input)
-                    if (target_state.pos_input[0][0], target_state.pos_input[0][1], target_state.pos_input[0][2]) not in self.explored_states:
-                        target_state.compare -= 1
+                    # if (target_state.pos_input[0][0], target_state.pos_input[0][1], target_state.pos_input[0][2]) not in self.explored_states:
+                    #     target_state.compare -= 1
                     new_count = np.count_nonzero(target_state.grid_input == '')
-                    target_state.compare -= new_count
-                    water_count = np.count_nonzero(target_state.grid_input == 'water')
-                    target_state.compare += water_count * 10
+                    # target_state.compare -= new_count
+                    # water_count = np.count_nonzero(target_state.grid_input == 'water')
+                    # target_state.compare += water_count * 10
 
                     current_state.outgoing_edges[act] = [deepcopy(new_state.applied_rules_pos), deepcopy(new_state.applied_rules_grid), new_state.confidence, act_updates, target_state, deepcopy(new_state.all_rules_pos), deepcopy(new_state.all_rules_grid)]
 
@@ -560,7 +566,10 @@ class Airis:
                             heap_iter += 1
                     else:
                         if target_state not in check_states:
-                            heapq.heappush(goal_heap, (target_state.compare, new_state.confidence, step + 1, heap_iter, target_state, act, current_state))
+                            if new_count > 0:
+                                heapq.heappush(goal_heap, (target_state.compare, -new_state.confidence, step + 1, heap_iter, target_state, act, current_state))
+                            else:
+                                heapq.heappush(goal_heap2, (target_state.compare, -new_state.confidence, step + 1, heap_iter, target_state, act, current_state))
                             heap_iter += 1
 
                     try:
@@ -572,64 +581,38 @@ class Airis:
                     # print('New Edge', current_state, act, target_state, current_state.outgoing_edges[act][2])
 
 
-        # if (60, 62, 16) in self.explored_states or (60, 63 , 16) in self.explored_states:
-        #     if self.pos_input[0][1] < 62:
-        #         find = False
-        #         find1 = 'Have not yet explored 60 62 16'
-        #         find2 = 'Have not yet explored 60 63 16'
-        #         if (60, 62, 16) in self.explored_states:
-        #             find1 = 'Explored 60 62 16'
-        #             for key in self.prediction_state_graph.keys():
-        #                 if key[0] == 60 and key[1] == 62 and key[2] == 16:
-        #                     error_state = self.prediction_state_graph[key]
-        #                     if error_state not in check_states and len(check_states) > 5:
-        #                         find1 = 'Cannot find 60 62 16'
-        #                     else:
-        #                         find = True
-        #                         find1 = 'Found 60 62 16'
-        #                         break
-        #
-        #         if (60, 63, 16) in self.explored_states:
-        #             find2 = 'Explored 60 63 16'
-        #             for key in self.prediction_state_graph.keys():
-        #                 if key[0] == 60 and key[1] == 63 and key[2] == 16:
-        #                     error_state = self.prediction_state_graph[key]
-        #                     if error_state not in check_states and len(check_states) > 5:
-        #                         find2 = 'Cannot find 60 63 16'
-        #                     else:
-        #                         find = True
-        #                         find2 = 'Found 60 63 16'
-        #                         break
-        #
-        #         if not find:
-        #             for item in check_states:
-        #                 print('State Pos', item.pos_input[0], 'state', item)
-        #                 for edge_act in item.outgoing_edges.keys():
-        #                     print('-', edge_act)
-        #                     for i, data in enumerate(item.outgoing_edges[edge_act]):
-        #                         print('--', i, '|', data)
-        #                         if i == 4:
-        #                             if (data.pos_input[0][0], data.pos_input[0][1], data.pos_input[0][2]) in self.explored_states:
-        #                                 print('--- Target state in explored states', data.pos_input[0][0], data.pos_input[0][1], data.pos_input[0][2])
-        #             print(find1)
-        #             print(find2)
-        #             raise Exception
-
-        if goal_heap:
+        if goal_heap or goal_heap2:
             if not goal_reached:
-                while goal_heap and (goal_heap[0][5], goal_heap[0][4]) in self.sanity_check:
-                    heapq.heappop(goal_heap)
-                goal_state = goal_heap[0][4]
-                while goal_state == original_state:
-                    heapq.heappop(goal_heap)
+                # while goal_heap and (goal_heap[0][5], goal_heap[0][4]) in self.sanity_check:
+                #     heapq.heappop(goal_heap)
+                if goal_heap:
                     goal_state = goal_heap[0][4]
-                self.action_plan.insert(0, (goal_heap[0][5], goal_heap[0][4], goal_heap[0][1], (goal_heap[0][6].outgoing_edges[goal_heap[0][5]][0], goal_heap[0][6].outgoing_edges[goal_heap[0][5]][1], goal_heap[0][6].outgoing_edges[goal_heap[0][5]][5], goal_heap[0][6].outgoing_edges[goal_heap[0][5]][6])))
-                try:
-                    self.state_output[tuple(goal_state.pos_input[0])][3] = 4
-                except KeyError:
-                    pass
-                self.edges_output[(tuple(goal_heap[0][6].pos_input[0]), tuple(goal_state.pos_input[0]))] = [goal_heap[0][6].pos_input[0][0], goal_heap[0][6].pos_input[0][1], goal_heap[0][6].pos_input[0][2], goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 1]
-                goal_state = goal_heap[0][6]
+                else:
+                    goal_state = goal_heap2[0][4]
+                while goal_state == original_state:
+                    if goal_heap:
+                        heapq.heappop(goal_heap)
+                        goal_state = goal_heap[0][4]
+                    else:
+                        heapq.heappop(goal_heap2)
+                        goal_state = goal_heap2[0][4]
+
+                if goal_heap:
+                    self.action_plan.insert(0, (goal_heap[0][5], goal_heap[0][4], goal_heap[0][1], (goal_heap[0][6].outgoing_edges[goal_heap[0][5]][0], goal_heap[0][6].outgoing_edges[goal_heap[0][5]][1], goal_heap[0][6].outgoing_edges[goal_heap[0][5]][5], goal_heap[0][6].outgoing_edges[goal_heap[0][5]][6])))
+                    try:
+                        self.state_output[tuple(goal_state.pos_input[0])][3] = 4
+                    except KeyError:
+                        pass
+                    self.edges_output[(tuple(goal_heap[0][6].pos_input[0]), tuple(goal_state.pos_input[0]))] = [goal_heap[0][6].pos_input[0][0], goal_heap[0][6].pos_input[0][1], goal_heap[0][6].pos_input[0][2], goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 1]
+                    goal_state = goal_heap[0][6]
+                else:
+                    self.action_plan.insert(0, (goal_heap2[0][5], goal_heap2[0][4], goal_heap2[0][1], (goal_heap2[0][6].outgoing_edges[goal_heap2[0][5]][0], goal_heap2[0][6].outgoing_edges[goal_heap2[0][5]][1], goal_heap2[0][6].outgoing_edges[goal_heap2[0][5]][5], goal_heap2[0][6].outgoing_edges[goal_heap2[0][5]][6])))
+                    try:
+                        self.state_output[tuple(goal_state.pos_input[0])][3] = 4
+                    except KeyError:
+                        pass
+                    self.edges_output[(tuple(goal_heap2[0][6].pos_input[0]), tuple(goal_state.pos_input[0]))] = [goal_heap2[0][6].pos_input[0][0], goal_heap2[0][6].pos_input[0][1], goal_heap2[0][6].pos_input[0][2], goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 1]
+                    goal_state = goal_heap2[0][6]
 
             if not at_goal:
                 while goal_state != original_state:
@@ -753,7 +736,7 @@ class Airis:
                 else:
                     compare_total += abs(c_val - pos_input[0][i])
 
-        compare_total = 1000
+        # compare_total = 1000
 
         return compare_total
 
@@ -1375,11 +1358,8 @@ if __name__ == '__main__':
 
     rob.sendCommand('chat /gamemode creative')
     rob.sendCommand('chat /effect give @s minecraft:night_vision infinite 0 true')
-    # rob.sendCommand('chat /tp 206 64 119')
-    sleep(5)
-    rob.sendCommand('chat /kill @e[type=!minecraft:player]')
-    sleep(30)
-    # rob.sendCommand('chat /tp 206 64 119')
+    sleep(60)
+    rob.sendCommand('chat /tp 206 64 119')
     rob.sendCommand('chat /difficulty peaceful')
 
     sleep(10)
