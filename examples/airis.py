@@ -159,7 +159,7 @@ class Airis:
                         self.last_compare = None
                         sleep(1)
                         self.state_history = set()
-                        raise Exception
+                        # raise Exception
                     else:
                         self.current_goal = self.given_goal
                         self.last_compare = None
@@ -472,8 +472,8 @@ class Airis:
                 try:
                     check = current_state.outgoing_edges[act]
                     check[4].compare = self.compare(check[4].pos_input, check[4].grid_input)
-                    # if (check[4].pos_input[0][0], check[4].pos_input[0][1], check[4].pos_input[0][2]) not in self.explored_states:
-                    #     check[4].compare -= 1
+                    if (check[4].pos_input[0][0], check[4].pos_input[0][1], check[4].pos_input[0][2]) not in self.explored_states and check[4].compare > 3:
+                        check[4].compare -= 1
                     new_count = np.count_nonzero(check[4].grid_input == '')
                     # check[4].compare -= new_count
                     # water_count = np.count_nonzero(check[4].grid_input == 'water')
@@ -539,8 +539,8 @@ class Airis:
                         # print('predicted state in graph, replacing with existing', target_state, target_state.pos_input)
 
                     target_state.compare = self.compare(target_state.pos_input, target_state.grid_input)
-                    # if (target_state.pos_input[0][0], target_state.pos_input[0][1], target_state.pos_input[0][2]) not in self.explored_states:
-                    #     target_state.compare -= 1
+                    if (target_state.pos_input[0][0], target_state.pos_input[0][1], target_state.pos_input[0][2]) not in self.explored_states and target_state.compare > 3:
+                        target_state.compare -= 1
                     new_count = np.count_nonzero(target_state.grid_input == '')
                     # target_state.compare -= new_count
                     # water_count = np.count_nonzero(target_state.grid_input == 'water')
