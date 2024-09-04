@@ -154,7 +154,7 @@ class Airis:
                 if (self.pos_input[0][0], self.pos_input[0][2]) == (self.current_goal[0][0], self.current_goal[0][2]) and self.pos_input[0][1] >= self.current_goal[0][1] - 1:
                     if np.all(self.current_goal == self.given_goal):
                         # self.goal_achieved = True
-                        rob.sendCommand('chat /tp 206 64 119')
+                        rob.sendCommand('chat /tp 20 100 20')
                         rob.sendCommand('chat Goal Reached! Resetting to initial position...')
                         self.last_compare = None
                         sleep(1)
@@ -204,8 +204,8 @@ class Airis:
                             except PermissionError:
                                 pass
                             print('Action Plan Length:', len(self.action_plan))
-                            if len(self.action_plan) == 1:
-                                self.sanity_check.add((self.action_plan[0][0], self.action_plan[0][1]))
+                            # if len(self.action_plan) == 1:
+                            self.sanity_check.add((self.action_plan[0][0], self.action_plan[0][1]))
                             return self.action_plan.pop(0)
                     else:
                         # print('Action Plan:', self.action_plan)
@@ -476,8 +476,8 @@ class Airis:
                         check[4].compare -= 1
                     new_count = np.count_nonzero(check[4].grid_input == '')
                     # check[4].compare -= new_count
-                    # water_count = np.count_nonzero(check[4].grid_input == 'water')
-                    # check[4].compare += water_count * 10
+                    water_count = np.count_nonzero(check[4].grid_input == 'water')
+                    check[4].compare += water_count * 10
                     if check[3] < act_updates:
                         update = True
                     if not update:
@@ -495,11 +495,12 @@ class Airis:
                                 heap_iter += 1
                         else:
                             if check[4] not in check_states:
-                                if new_count > 0:
-                                    heapq.heappush(goal_heap, (check[4].compare, -check[2], step + 1, heap_iter, check[4], act, current_state))
-                                else:
-                                    heapq.heappush(goal_heap2, (check[4].compare, -check[2], step + 1, heap_iter, check[4], act, current_state))
-                                heap_iter += 1
+                                if 240 > check[4].pos_input[0][0] > -240 and 240 > check[4].pos_input[0][2] > -240: 
+                                    if new_count > 0:
+                                        heapq.heappush(goal_heap, (check[4].compare, -check[2], step + 1, heap_iter, check[4], act, current_state))
+                                    else:
+                                        heapq.heappush(goal_heap2, (check[4].compare, -check[2], step + 1, heap_iter, check[4], act, current_state))
+                                    heap_iter += 1
 
                         try:
                             heapq.heappush(path_heap[check[4]], (step + 1, heap_iter, act, current_state))
@@ -543,8 +544,8 @@ class Airis:
                         target_state.compare -= 1
                     new_count = np.count_nonzero(target_state.grid_input == '')
                     # target_state.compare -= new_count
-                    # water_count = np.count_nonzero(target_state.grid_input == 'water')
-                    # target_state.compare += water_count * 10
+                    water_count = np.count_nonzero(target_state.grid_input == 'water')
+                    target_state.compare += water_count * 10
 
                     current_state.outgoing_edges[act] = [deepcopy(new_state.applied_rules_pos), deepcopy(new_state.applied_rules_grid), new_state.confidence, act_updates, target_state, deepcopy(new_state.all_rules_pos), deepcopy(new_state.all_rules_grid)]
 
@@ -566,11 +567,12 @@ class Airis:
                             heap_iter += 1
                     else:
                         if target_state not in check_states:
-                            if new_count > 0:
-                                heapq.heappush(goal_heap, (target_state.compare, -new_state.confidence, step + 1, heap_iter, target_state, act, current_state))
-                            else:
-                                heapq.heappush(goal_heap2, (target_state.compare, -new_state.confidence, step + 1, heap_iter, target_state, act, current_state))
-                            heap_iter += 1
+                            if 240 > target_state.pos_input[0][0] > -240 and 240 > target_state.pos_input[0][2] > -240:
+                                if new_count > 0:
+                                    heapq.heappush(goal_heap, (target_state.compare, -new_state.confidence, step + 1, heap_iter, target_state, act, current_state))
+                                else:
+                                    heapq.heappush(goal_heap2, (target_state.compare, -new_state.confidence, step + 1, heap_iter, target_state, act, current_state))
+                                heap_iter += 1
 
                     try:
                         heapq.heappush(path_heap[target_state], (step + 1, heap_iter, act, current_state))
@@ -635,9 +637,9 @@ class Airis:
                     goal_state = path_heap[goal_state][0][3]
                     print('New goal state', goal_state)
 
-        else:
-            rob.sendCommand("chat Can't explore further, teleporting...")
-            rob.sendCommand('chat /tp 20 100 20')
+        # else:
+        #     rob.sendCommand("chat Can't explore further, teleporting...")
+        #     rob.sendCommand('chat /tp 20 100 20')
 
         print('Number of persistent states', len(self.state_graph.keys()))
 
@@ -736,7 +738,7 @@ class Airis:
                 else:
                     compare_total += abs(c_val - pos_input[0][i])
 
-        # compare_total = 1000
+        compare_total = 10000
 
         return compare_total
 
@@ -813,14 +815,14 @@ class Airis:
                 if diff_count == total_len:
                     continue
 
-                # if predict_heap['Pos' + str(idx)]:
-                #     if predict_heap['Pos' + str(idx)][0][0] == diff_count:
-                #         if age > predict_heap['Pos' + str(idx)][0][7]:
-                #             heapq.heapreplace(predict_heap['Pos' + str(idx)], (diff_count, -age, rule, idx, new_val, 'Pos', total_len, updates, idx, act, differences))
-                #     else:
-                #         heapq.heappush(predict_heap['Pos' + str(idx)], (diff_count, -age, rule, idx, new_val, 'Pos', total_len, updates, idx, act, differences))
-                # else:
-                heapq.heappush(predict_heap['Pos' + str(idx)], (diff_count, -age, rule, idx, new_val, 'Pos', total_len, updates, idx, act, differences))
+                if predict_heap['Pos' + str(idx)]:
+                    if predict_heap['Pos' + str(idx)][0][0] == diff_count:
+                        if age > -predict_heap['Pos' + str(idx)][0][1]:
+                            heapq.heapreplace(predict_heap['Pos' + str(idx)], (diff_count, -age, rule, idx, new_val, 'Pos', total_len, updates, idx, act, differences))
+                    else:
+                        heapq.heappush(predict_heap['Pos' + str(idx)], (diff_count, -age, rule, idx, new_val, 'Pos', total_len, updates, idx, act, differences))
+                else:
+                    heapq.heappush(predict_heap['Pos' + str(idx)], (diff_count, -age, rule, idx, new_val, 'Pos', total_len, updates, idx, act, differences))
 
                 # if diff_count == 0:
                 #     break
@@ -1359,7 +1361,7 @@ if __name__ == '__main__':
     rob.sendCommand('chat /gamemode creative')
     rob.sendCommand('chat /effect give @s minecraft:night_vision infinite 0 true')
     sleep(60)
-    rob.sendCommand('chat /tp 206 64 119')
+    # rob.sendCommand('chat /tp 206 64 119')
     rob.sendCommand('chat /difficulty peaceful')
 
     sleep(10)
@@ -1374,13 +1376,15 @@ if __name__ == '__main__':
     while not airis.goal_achieved:
         stats = [mc.getFullStat(key) for key in fullStatKeys]
         stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), 0]  # round(stats[4]) % 360]
-        if math.floor(stats[0]) > 490 or math.floor(stats[0]) < -490 or math.floor(stats[2]) > 490 or math.floor(stats[2]) < -490:
+        grid = mc.getNearGrid()
+        print('Pre Action Stats', stats)
+        if math.floor(stats[0]) > 240 or math.floor(stats[0]) < -240 or math.floor(stats[2]) > 240 or math.floor(stats[2]) < -240:
             rob.sendCommand('chat /tp 20 100 20')
             rob.sendCommand('chat Reached boundary of test area, teleporting...')
             sleep(5)
             stats = [mc.getFullStat(key) for key in fullStatKeys]
             stats = [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2]), round(stats[3]), 0]  # round(stats[4]) % 360]
-
+            grid = mc.getNearGrid()
         try:
             action, state, confidence, applied_rules = airis.capture_input(stats, grid, None, None, True, None, None)
             print('performing action', action, 'and predicting state', state)
@@ -1585,6 +1589,8 @@ if __name__ == '__main__':
                 logcount += 1
                 sys.stdout = open('./logs/Console_Log' + str(logcount) + '.txt', 'w')
         except TypeError:
-            pass
+            rob.sendCommand('chat /tp 20 100 20')
+            rob.sendCommand('chat I think I am stuck. Maybe I will try exploring here later.')
+            sleep(5)
 
     print('Test Routine Complete')
