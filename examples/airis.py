@@ -51,8 +51,6 @@ class Airis:
         self.goal_achieved = False
         self.applied_rules_pos = None
         self.applied_rules_grid = None
-        self.all_rules_pos = None
-        self.all_rules_grid = None
         self.bad_predictions_pos = None
         self.bad_predictions_grid = None
         self.time_step = 0
@@ -307,8 +305,6 @@ class Airis:
 
             self.applied_rules_pos = deepcopy(applied_rules[0])
             self.applied_rules_grid = deepcopy(applied_rules[1])
-            self.all_rules_pos = deepcopy(applied_rules[2])
-            self.all_rules_grid = deepcopy(applied_rules[3])
 
             if pos_mismatch:
                 clear_plan = True
@@ -325,17 +321,31 @@ class Airis:
                 for index in pos_mismatch:
                     found = False
                     try:
-                        while self.all_rules_pos[index]:
-                            data = heapq.heappop(self.all_rules_pos[index])
-                            # (diff_count, -age, rule, idx, new_val, 'Pos', total_len, updates, idx, act, differences)
-                            print('Checking other rules', tuple(map(lambda old, change: old + change, self.pos_input[index], data[4])), new_pos_input[index])
-                            if np.all(tuple(map(lambda old, change: old + change, self.pos_input[index], data[4])) == new_pos_input[index]):
-                                print('Applying incorrect rule to other rule', data)
-                                self.applied_rules_pos[index] = data
-                                found = True
-                                break
+                        rules_list = self.knowledge['Pos-' + str(index) + '/Actions'][action]
+
+                        for rule in rules_list:
+                            if np.all(tuple(map(lambda old, change: old + change, self.pos_input[index], self.knowledge['Pos-' + str(index) + '/' + str(index) + '/' + str(rule) + '/New Value'])) == new_pos_input[index]):
+                                if not found:
+                                    print('Applying incorrect rule to other rule', rule)
+                                    self.applied_rules_pos[index] = ('unknown', self.knowledge['Pos-' + str(index) + '/' + str(index) + '/' + str(rule) + '/Age'], rule, index, self.knowledge['Pos-' + str(index) + '/' + str(index) + '/' + str(rule) + '/New Value'], 'Pos', 'unknown', 'unknown', index, action, 'unknown')
+                                    found = True
+                                else:
+                                    print('Found 2 identical outcomes?', rule, self.applied_rules_pos[index][2])
+                                    raise Exception
                     except KeyError:
                         pass
+                    # try:
+                    #     while self.all_rules_pos[index]:
+                    #         data = heapq.heappop(self.all_rules_pos[index])
+                    #         # (diff_count, -age, rule, idx, new_val, 'Pos', total_len, updates, idx, act, differences)
+                    #         print('Checking other rules', tuple(map(lambda old, change: old + change, self.pos_input[index], data[4])), new_pos_input[index])
+                    #         if np.all(tuple(map(lambda old, change: old + change, self.pos_input[index], data[4])) == new_pos_input[index]):
+                    #             print('Applying incorrect rule to other rule', data)
+                    #             self.applied_rules_pos[index] = data
+                    #             found = True
+                    #             break
+                    # except KeyError:
+                    #     pass
 
                     if not found:
                         self.create_rule(action, 'Pos', index, self.pos_input[index], new_pos_input[index])
@@ -474,7 +484,7 @@ class Airis:
                     path_heap[goal_state] = [(step + 1, heap_iter, act, current_state)]
                     goal_reached = True
                     goal_heap.append('New action')
-                    current_state.outgoing_edges[act] = [deepcopy(new_state.applied_rules_pos), deepcopy(new_state.applied_rules_grid), new_state.confidence, 0, new_state, deepcopy(new_state.all_rules_pos), deepcopy(new_state.all_rules_grid)]
+                    current_state.outgoing_edges[act] = [deepcopy(new_state.applied_rules_pos), deepcopy(new_state.applied_rules_grid), new_state.confidence, 0, new_state]
                     debug_new = True
                     break
                 update = False
@@ -560,7 +570,7 @@ class Airis:
                     water_count = np.count_nonzero(target_state.grid_input == 'water')
                     target_state.compare += water_count * 10
 
-                    current_state.outgoing_edges[act] = [deepcopy(new_state.applied_rules_pos), deepcopy(new_state.applied_rules_grid), new_state.confidence, act_updates, target_state, deepcopy(new_state.all_rules_pos), deepcopy(new_state.all_rules_grid)]
+                    current_state.outgoing_edges[act] = [deepcopy(new_state.applied_rules_pos), deepcopy(new_state.applied_rules_grid), new_state.confidence, act_updates, target_state]
 
                     self.edges_output[(tuple(current_state.pos_input[0]), tuple(target_state.pos_input[0]))] = [current_state.pos_input[0][0], current_state.pos_input[0][1], current_state.pos_input[0][2], target_state.pos_input[0][0], target_state.pos_input[0][1], target_state.pos_input[0][2], 3, 0]
                     if new_state.confidence != 1:
@@ -619,7 +629,7 @@ class Airis:
                 print('goal heap check', goal_heap)
                 if goal_heap:
                     self.sanity_check.add((goal_heap[0][6], goal_heap[0][4], goal_heap[0][5]))
-                    self.action_plan.insert(0, (goal_heap[0][5], goal_heap[0][4], goal_heap[0][1], (goal_heap[0][6].outgoing_edges[goal_heap[0][5]][0], goal_heap[0][6].outgoing_edges[goal_heap[0][5]][1], goal_heap[0][6].outgoing_edges[goal_heap[0][5]][5], goal_heap[0][6].outgoing_edges[goal_heap[0][5]][6])))
+                    self.action_plan.insert(0, (goal_heap[0][5], goal_heap[0][4], goal_heap[0][1], (goal_heap[0][6].outgoing_edges[goal_heap[0][5]][0], goal_heap[0][6].outgoing_edges[goal_heap[0][5]][1])))
                     try:
                         self.state_output[tuple(goal_state.pos_input[0])][3] = 4
                     except KeyError:
@@ -627,7 +637,7 @@ class Airis:
                     self.edges_output[(tuple(goal_heap[0][6].pos_input[0]), tuple(goal_state.pos_input[0]))] = [goal_heap[0][6].pos_input[0][0], goal_heap[0][6].pos_input[0][1], goal_heap[0][6].pos_input[0][2], goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 1, 1]
                     goal_state = goal_heap[0][6]
                 else:
-                    self.action_plan.insert(0, (goal_heap2[0][5], goal_heap2[0][4], goal_heap2[0][1], (goal_heap2[0][6].outgoing_edges[goal_heap2[0][5]][0], goal_heap2[0][6].outgoing_edges[goal_heap2[0][5]][1], goal_heap2[0][6].outgoing_edges[goal_heap2[0][5]][5], goal_heap2[0][6].outgoing_edges[goal_heap2[0][5]][6])))
+                    self.action_plan.insert(0, (goal_heap2[0][5], goal_heap2[0][4], goal_heap2[0][1], (goal_heap2[0][6].outgoing_edges[goal_heap2[0][5]][0], goal_heap2[0][6].outgoing_edges[goal_heap2[0][5]][1])))
                     try:
                         self.state_output[tuple(goal_state.pos_input[0])][3] = 4
                     except KeyError:
@@ -641,7 +651,7 @@ class Airis:
                     print('Adding Goal State to action plan', goal_state)
                     # print('Previous State', path_heap[goal_state][0][3])
                     print('Original State', original_state)
-                    self.action_plan.insert(0, (path_heap[goal_state][0][2], goal_state, path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][2], (path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][0], path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][1], path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][5], path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][6])))
+                    self.action_plan.insert(0, (path_heap[goal_state][0][2], goal_state, path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][2], (path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][0], path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][1])))
                     try:
                         self.state_output[tuple(goal_state.pos_input[0])][3] = 0
                     except KeyError:
@@ -801,9 +811,9 @@ class Airis:
                     # if not np.all(predict_state.pos_input[i] == self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][i]):
                     #     diff_count += 1
 
-                # if best_diff is not None:
-                #     if diff_count > best_diff:
-                #         continue
+                if best_diff is not None:
+                    if diff_count > best_diff:
+                        continue
 
                 # GRID
                 # condition_set = self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set']
@@ -818,9 +828,9 @@ class Airis:
                         diff_count += 1
                         differences.append(('Grid', v, i, self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Positive Grid Conditions'][i]))
 
-                # if best_diff is not None:
-                #     if diff_count > best_diff:
-                #         continue
+                if best_diff is not None:
+                    if diff_count > best_diff:
+                        continue
 
                 updates = self.knowledge['Pos-' + str(idx) + '/' + str(idx) + '/' + str(rule) + '/Updates']
                 new_val = self.knowledge['Pos-' + str(idx) + '/' + str(idx) + '/' + str(rule) + '/New Value']
@@ -828,11 +838,11 @@ class Airis:
 
                 best_diff = diff_count
 
-                # if total_len == 0:
-                #     continue
-                #
-                # if diff_count == total_len:
-                #     continue
+                if total_len == 0:
+                    continue
+
+                if diff_count == total_len:
+                    continue
 
                 if predict_heap['Pos' + str(idx)]:
                     if predict_heap['Pos' + str(idx)][0][0] == diff_count:
