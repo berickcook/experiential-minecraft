@@ -204,8 +204,6 @@ class Airis:
                             except PermissionError:
                                 pass
                             print('Action Plan Length:', len(self.action_plan))
-                            # if len(self.action_plan) == 1:
-                            self.sanity_check.add((self.action_plan[0][0], self.action_plan[0][1]))
                             return self.action_plan.pop(0)
                     else:
                         # print('Action Plan:', self.action_plan)
@@ -239,6 +237,7 @@ class Airis:
 
 
         else:
+            time_check = time()
             new_pos_input = np.asarray([(math.floor(pos_input[0]), math.floor(pos_input[1]), math.floor(pos_input[2]))])
             new_grid_input = np.asarray(grid_input, dtype=np.dtype('U42'))
 
@@ -279,13 +278,17 @@ class Airis:
                 self.state_graph[(new_pos_input[0][0], new_pos_input[0][1], new_pos_input[0][2])] = post_state
 
             self.explored_states.add(tuple(new_pos_input[0]))
+            print('Map update time', time() - time_check)
 
             clear_plan = False
             self.last_action = action
             self.bad_predictions_pos = dict()
             self.bad_predictions_grid = dict()
 
-            if confidence == 0:
+            try:
+                act_updates = self.knowledge['Action Updates'][action]
+            except KeyError:
+                time_check = time()
                 # create no confidence rules
                 for i, v in enumerate(self.pos_input):
                     try:
@@ -297,7 +300,8 @@ class Airis:
                     self.create_rule(action, 'Pos', i, self.pos_input[i], new_pos_input[i])
                 # for i, v in enumerate(self.grid_input):
                 #     self.create_rule(action, 'Grid', i, self.grid_input[i], new_grid_input[i])
-
+                print('0 confidence prediction rule creation time', time() - time_check)
+            time_check = time()
             pos_mismatch = [i for i, v in enumerate(state.pos_input) if not np.all(v == new_pos_input[i])]
             grid_mismatch = [i for i, v in enumerate(state.grid_input) if v != new_grid_input[i]]
 
@@ -336,6 +340,8 @@ class Airis:
                     if not found:
                         self.create_rule(action, 'Pos', index, self.pos_input[index], new_pos_input[index])
 
+            print('update applied rules time', time() - time_check)
+
             # elif grid_mismatch:
             #     clear_plan = True
             #     for index in grid_mismatch:
@@ -365,7 +371,7 @@ class Airis:
 
             # (diff_count, rule, idx, new_val, 'Pos', pos_data[2] + grid_data[1], updates, age, idx)
             # self.debug_dict['Pos' + str(idx) + str(rule) + state] = (idx, rule, i, predict_state.pos_input[i]
-
+            time_check = time()
             for index in self.applied_rules_pos.keys():
                 print('pre-checking differences')
                 for item in self.applied_rules_pos[index][10]:
@@ -375,7 +381,7 @@ class Airis:
 
             for index in self.applied_rules_grid.keys():
                 self.update_good_rule(self.applied_rules_grid[index])
-
+            print('update good rules time', time() - time_check)
             # for key in self.states[state].debug_dict.keys():
             #     print('debug dict', key, self.states[state].debug_dict[key])
 
@@ -386,7 +392,7 @@ class Airis:
             #     self.update_bad_rule(self.bad_predictions_grid[index])
 
             # print('Prediction State: ', self.states[state])
-
+            time_check = time()
             print('Prediction Confidence: ', confidence)
             if clear_plan:
                 print('Prediction Incorrect...')
@@ -407,6 +413,7 @@ class Airis:
             self.time_step += 1
             # if not clear_plan:
             self.state_history.add(hash((tuple(self.pos_input[0]), tuple(self.grid_input), action)))
+            print('final processes time', time() - time_check)
 
     def make_plan(self, original_state):
         self.action_plan = []
@@ -424,13 +431,15 @@ class Airis:
         path_heap = dict()
         goal_state = None
         heap_iter = 1
+        plan_iter = 0
         debug_connected = set()
         debug_checked = set()
         debug_connected.add(self.states[0][2])
         print('pre-adding state to debug_connected', self.states[0][2])
         debug_new = False
+        end_search = False
 
-        while not goal_reached:
+        while not goal_reached and not end_search:
             # Check for missing outgoing edges in current state
             if self.states:
                 current_state = heapq.heappop(self.states)[2]
@@ -458,7 +467,7 @@ class Airis:
                 compare_adj = 0
                 try:
                     act_updates = self.knowledge['Action Updates'][act]
-                except:
+                except KeyError:
                     print('Action not yet tried, trying...')
                     new_state = self.predict(act, current_state)
                     goal_state = new_state
@@ -481,7 +490,7 @@ class Airis:
                     if check[3] < act_updates:
                         update = True
                     if not update:
-                        self.edges_output[(tuple(current_state.pos_input[0]), tuple(check[4].pos_input[0]))] = [current_state.pos_input[0][0], current_state.pos_input[0][1], current_state.pos_input[0][2], check[4].pos_input[0][0], check[4].pos_input[0][1], check[4].pos_input[0][2], 3]
+                        self.edges_output[(tuple(current_state.pos_input[0]), tuple(check[4].pos_input[0]))] = [current_state.pos_input[0][0], current_state.pos_input[0][1], current_state.pos_input[0][2], check[4].pos_input[0][0], check[4].pos_input[0][1], check[4].pos_input[0][2], 3, 0]
                         if check[2] != 1:
                             self.edges_output[(tuple(current_state.pos_input[0]), tuple(check[4].pos_input[0]))][6] = 0
 
@@ -490,24 +499,28 @@ class Airis:
                             print('adding to debug_connected', check[4])
                             if check[4] not in check_states:
                                 print('state not in check_states, adding to state heap', check[4])
-                                heapq.heappush(self.states, (check[4].compare + step + 1, heap_iter, check[4], act, current_state))
+                                heapq.heappush(self.states, (step + 1, heap_iter, check[4], act, current_state))
                                 check_states.add(check[4])
                                 heap_iter += 1
                         else:
                             if check[4] not in check_states:
                                 if 240 > check[4].pos_input[0][0] > -240 and 240 > check[4].pos_input[0][2] > -240: 
                                     if new_count > 0:
-                                        heapq.heappush(goal_heap, (check[4].compare, -check[2], step + 1, heap_iter, check[4], act, current_state))
+                                        if (current_state, check[4], act) not in self.sanity_check:
+                                            heapq.heappush(goal_heap, (check[4].compare, -check[2], step + 1, heap_iter, check[4], act, current_state))
+                                            if self.time_step > 20 and check[4] != original_state:
+                                                print('Ending Search', check[4])
+                                                end_search = True
                                     else:
                                         heapq.heappush(goal_heap2, (check[4].compare, -check[2], step + 1, heap_iter, check[4], act, current_state))
                                     heap_iter += 1
 
                         try:
-                            heapq.heappush(path_heap[check[4]], (step + 1, heap_iter, act, current_state))
-                            heap_iter += 1
+                            heapq.heappush(path_heap[check[4]], (step + 1, plan_iter, act, current_state))
+                            plan_iter += 1
                         except KeyError:
-                            path_heap[check[4]] = [(step + 1, heap_iter, act, current_state)]
-                            heap_iter += 1
+                            path_heap[check[4]] = [(step + 1, plan_iter, act, current_state)]
+                            plan_iter += 1
 
                         # print('Up-to-date Edge found:', current_state, act, check[4], check)
                 except KeyError:
@@ -549,7 +562,7 @@ class Airis:
 
                     current_state.outgoing_edges[act] = [deepcopy(new_state.applied_rules_pos), deepcopy(new_state.applied_rules_grid), new_state.confidence, act_updates, target_state, deepcopy(new_state.all_rules_pos), deepcopy(new_state.all_rules_grid)]
 
-                    self.edges_output[(tuple(current_state.pos_input[0]), tuple(target_state.pos_input[0]))] = [current_state.pos_input[0][0], current_state.pos_input[0][1], current_state.pos_input[0][2], target_state.pos_input[0][0], target_state.pos_input[0][1], target_state.pos_input[0][2], 3]
+                    self.edges_output[(tuple(current_state.pos_input[0]), tuple(target_state.pos_input[0]))] = [current_state.pos_input[0][0], current_state.pos_input[0][1], current_state.pos_input[0][2], target_state.pos_input[0][0], target_state.pos_input[0][1], target_state.pos_input[0][2], 3, 0]
                     if new_state.confidence != 1:
                         self.edges_output[(tuple(current_state.pos_input[0]), tuple(target_state.pos_input[0]))][6] = 0
                     # try:
@@ -562,29 +575,34 @@ class Airis:
                         print('adding to debug_connected', target_state)
                         if target_state not in check_states:
                             print('state not in check_states, adding to state heap', target_state)
-                            heapq.heappush(self.states, (target_state.compare + step + 1, heap_iter, target_state, act, current_state))
+                            heapq.heappush(self.states, (step + 1, heap_iter, target_state, act, current_state))
                             check_states.add(target_state)
                             heap_iter += 1
                     else:
                         if target_state not in check_states:
                             if 240 > target_state.pos_input[0][0] > -240 and 240 > target_state.pos_input[0][2] > -240:
                                 if new_count > 0:
-                                    heapq.heappush(goal_heap, (target_state.compare, -new_state.confidence, step + 1, heap_iter, target_state, act, current_state))
+                                    if (current_state, target_state, act) not in self.sanity_check:
+                                        heapq.heappush(goal_heap, (target_state.compare, -new_state.confidence, step + 1, heap_iter, target_state, act, current_state))
+                                        if self.time_step > 20 and target_state != original_state:
+                                            print('Ending Search', target_state)
+                                            end_search = True
                                 else:
                                     heapq.heappush(goal_heap2, (target_state.compare, -new_state.confidence, step + 1, heap_iter, target_state, act, current_state))
                                 heap_iter += 1
 
                     try:
-                        heapq.heappush(path_heap[target_state], (step + 1, heap_iter, act, current_state))
-                        heap_iter += 1
+                        heapq.heappush(path_heap[target_state], (step + 1, plan_iter, act, current_state))
+                        plan_iter += 1
                     except KeyError:
-                        path_heap[target_state] = [(step + 1, heap_iter, act, current_state)]
-                        heap_iter += 1
+                        path_heap[target_state] = [(step + 1, plan_iter, act, current_state)]
+                        plan_iter += 1
                     # print('New Edge', current_state, act, target_state, current_state.outgoing_edges[act][2])
 
-
-        if goal_heap or goal_heap2:
-            if not goal_reached:
+        print('pre check goal heap', goal_heap)
+        if goal_heap: # or goal_heap2:
+            if not goal_reached or end_search:
+                print('setting goal state')
                 # while goal_heap and (goal_heap[0][5], goal_heap[0][4]) in self.sanity_check:
                 #     heapq.heappop(goal_heap)
                 if goal_heap:
@@ -598,14 +616,15 @@ class Airis:
                     else:
                         heapq.heappop(goal_heap2)
                         goal_state = goal_heap2[0][4]
-
+                print('goal heap check', goal_heap)
                 if goal_heap:
+                    self.sanity_check.add((goal_heap[0][6], goal_heap[0][4], goal_heap[0][5]))
                     self.action_plan.insert(0, (goal_heap[0][5], goal_heap[0][4], goal_heap[0][1], (goal_heap[0][6].outgoing_edges[goal_heap[0][5]][0], goal_heap[0][6].outgoing_edges[goal_heap[0][5]][1], goal_heap[0][6].outgoing_edges[goal_heap[0][5]][5], goal_heap[0][6].outgoing_edges[goal_heap[0][5]][6])))
                     try:
                         self.state_output[tuple(goal_state.pos_input[0])][3] = 4
                     except KeyError:
                         pass
-                    self.edges_output[(tuple(goal_heap[0][6].pos_input[0]), tuple(goal_state.pos_input[0]))] = [goal_heap[0][6].pos_input[0][0], goal_heap[0][6].pos_input[0][1], goal_heap[0][6].pos_input[0][2], goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 1]
+                    self.edges_output[(tuple(goal_heap[0][6].pos_input[0]), tuple(goal_state.pos_input[0]))] = [goal_heap[0][6].pos_input[0][0], goal_heap[0][6].pos_input[0][1], goal_heap[0][6].pos_input[0][2], goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 1, 1]
                     goal_state = goal_heap[0][6]
                 else:
                     self.action_plan.insert(0, (goal_heap2[0][5], goal_heap2[0][4], goal_heap2[0][1], (goal_heap2[0][6].outgoing_edges[goal_heap2[0][5]][0], goal_heap2[0][6].outgoing_edges[goal_heap2[0][5]][1], goal_heap2[0][6].outgoing_edges[goal_heap2[0][5]][5], goal_heap2[0][6].outgoing_edges[goal_heap2[0][5]][6])))
@@ -613,7 +632,7 @@ class Airis:
                         self.state_output[tuple(goal_state.pos_input[0])][3] = 4
                     except KeyError:
                         pass
-                    self.edges_output[(tuple(goal_heap2[0][6].pos_input[0]), tuple(goal_state.pos_input[0]))] = [goal_heap2[0][6].pos_input[0][0], goal_heap2[0][6].pos_input[0][1], goal_heap2[0][6].pos_input[0][2], goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 1]
+                    self.edges_output[(tuple(goal_heap2[0][6].pos_input[0]), tuple(goal_state.pos_input[0]))] = [goal_heap2[0][6].pos_input[0][0], goal_heap2[0][6].pos_input[0][1], goal_heap2[0][6].pos_input[0][2], goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 1, 1]
                     goal_state = goal_heap2[0][6]
 
             if not at_goal:
@@ -782,9 +801,9 @@ class Airis:
                     # if not np.all(predict_state.pos_input[i] == self.knowledge['Pos-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Pos Conditions'][i]):
                     #     diff_count += 1
 
-                if best_diff is not None:
-                    if diff_count > best_diff:
-                        continue
+                # if best_diff is not None:
+                #     if diff_count > best_diff:
+                #         continue
 
                 # GRID
                 # condition_set = self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Grid Conditions Set']
@@ -799,9 +818,9 @@ class Airis:
                         diff_count += 1
                         differences.append(('Grid', v, i, self.knowledge['Grid-' + str(idx) + '/' + str(o_val) + '/' + str(rule) + '/Positive Grid Conditions'][i]))
 
-                if best_diff is not None:
-                    if diff_count > best_diff:
-                        continue
+                # if best_diff is not None:
+                #     if diff_count > best_diff:
+                #         continue
 
                 updates = self.knowledge['Pos-' + str(idx) + '/' + str(idx) + '/' + str(rule) + '/Updates']
                 new_val = self.knowledge['Pos-' + str(idx) + '/' + str(idx) + '/' + str(rule) + '/New Value']
@@ -809,11 +828,11 @@ class Airis:
 
                 best_diff = diff_count
 
-                if total_len == 0:
-                    continue
-
-                if diff_count == total_len:
-                    continue
+                # if total_len == 0:
+                #     continue
+                #
+                # if diff_count == total_len:
+                #     continue
 
                 if predict_heap['Pos' + str(idx)]:
                     if predict_heap['Pos' + str(idx)][0][0] == diff_count:
@@ -1583,14 +1602,27 @@ if __name__ == '__main__':
             grid = mc.getNearGrid()
             airis.capture_input(stats, grid, action, state, False, confidence, applied_rules)
             print('Current Stats', stats)
+            try:
+                total = 0
+                for item in airis.knowledge['Action Rules']:
+                    total += len(airis.knowledge['Action Rules'][item])
+                print('Total number of rules: ', total)
+            except KeyError:
+                pass
             airis.save_knowledge('Knowledge.npy')
 
             if os.path.getsize('./logs/Console_Log'+str(logcount)+'.txt') > 100000000:
                 logcount += 1
                 sys.stdout = open('./logs/Console_Log' + str(logcount) + '.txt', 'w')
         except TypeError:
-            rob.sendCommand('chat /tp 20 100 20')
-            rob.sendCommand('chat I think I am stuck. Maybe I will try exploring here later.')
-            sleep(5)
+            if math.floor(stats[0]) > 240 or math.floor(stats[0]) < -240 or math.floor(stats[2]) > 240 or math.floor(stats[2]) < -240:
+                rob.sendCommand('chat /tp 20 100 20')
+                rob.sendCommand('chat Reached boundary of test area, teleporting...')
+                sleep(5)
+            else:
+                rob.sendCommand('chat /tp 20 100 20')
+                rob.sendCommand('chat I think I am stuck. Maybe I will try exploring here later.')
+                airis.sanity_check = set()
+                sleep(5)
 
     print('Test Routine Complete')
