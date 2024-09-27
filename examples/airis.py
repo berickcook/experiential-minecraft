@@ -7,6 +7,7 @@ import tagilmo.utils.mission_builder as mb
 import numpy as np
 import uuid
 import os, sys
+from random import sample
 
 from copy import copy, deepcopy
 from tagilmo.utils.mathutils import normAngle, degree2rad
@@ -116,10 +117,12 @@ class Airis:
             #     if v != '' and v != post[i]:
             #         print('Grid was', v, 'but now its', post[i])
             #         raise Exception
+            self.grid_output = dict()
 
             if not self.action_plan:
-                for key in self.state_output.keys():
-                    self.state_output[key][3] = 3
+                # for key in self.state_output.keys():
+                #     self.state_output[key][3] = 3
+                self.state_output = dict()
                 self.edges_output = dict()
                 prior_state = State(self.pos_input, self.grid_input)
                 self.states = []
@@ -257,7 +260,7 @@ class Airis:
             try:
                 self.state_output[tuple(self.pos_input[0])][3] = 5
             except KeyError:
-                pass
+                self.state_output[tuple(self.pos_input[0])] = [self.pos_input[0][0], self.pos_input[0][1], self.pos_input[0][2], 5]
 
             try:
                 self.edges_output[(tuple(self.pos_input[0]), tuple(new_pos_input[0]))][6] = 5
@@ -461,7 +464,7 @@ class Airis:
             try:
                 self.state_output[tuple(current_state.pos_input[0])][3] = 2
             except KeyError:
-                pass
+                self.state_output[tuple(current_state.pos_input[0])] = [current_state.pos_input[0][0], current_state.pos_input[0][1], current_state.pos_input[0][2], 2]
             # print('current state pos info', current_state.pos_input, 'grid info', current_state.grid_input)
             goal_compare = self.compare(current_state.pos_input, current_state.grid_input)
             current_state.compare = goal_compare
@@ -472,7 +475,9 @@ class Airis:
 
             step += 1
 
-            for act in self.actions:
+            action_list = copy(self.actions)
+            while action_list:
+                act = sample(action_list, 1)[0]
                 real_state = False
                 compare_adj = 0
                 try:
@@ -608,6 +613,7 @@ class Airis:
                         path_heap[target_state] = [(step + 1, plan_iter, act, current_state)]
                         plan_iter += 1
                     # print('New Edge', current_state, act, target_state, current_state.outgoing_edges[act][2])
+                action_list.remove(act)
 
         print('pre check goal heap', goal_heap)
         if goal_heap: # or goal_heap2:
@@ -633,7 +639,7 @@ class Airis:
                     try:
                         self.state_output[tuple(goal_state.pos_input[0])][3] = 4
                     except KeyError:
-                        pass
+                        self.state_output[tuple(goal_state.pos_input[0])] = [goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 4]
                     self.edges_output[(tuple(goal_heap[0][6].pos_input[0]), tuple(goal_state.pos_input[0]))] = [goal_heap[0][6].pos_input[0][0], goal_heap[0][6].pos_input[0][1], goal_heap[0][6].pos_input[0][2], goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 1, 1]
                     goal_state = goal_heap[0][6]
                 else:
@@ -641,7 +647,7 @@ class Airis:
                     try:
                         self.state_output[tuple(goal_state.pos_input[0])][3] = 4
                     except KeyError:
-                        pass
+                        self.state_output[tuple(goal_state.pos_input[0])] = [goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 4]
                     self.edges_output[(tuple(goal_heap2[0][6].pos_input[0]), tuple(goal_state.pos_input[0]))] = [goal_heap2[0][6].pos_input[0][0], goal_heap2[0][6].pos_input[0][1], goal_heap2[0][6].pos_input[0][2], goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 1, 1]
                     goal_state = goal_heap2[0][6]
 
@@ -655,7 +661,7 @@ class Airis:
                     try:
                         self.state_output[tuple(goal_state.pos_input[0])][3] = 0
                     except KeyError:
-                        pass
+                        self.state_output[tuple(goal_state.pos_input[0])] = [goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 0]
                     try:
                         if path_heap[goal_state][0][3].confidence == 1:
                             self.edges_output[(tuple(path_heap[goal_state][0][3].pos_input[0]), tuple(goal_state.pos_input[0]))][6] = 4 #(path_heap[goal_state][0][3].pos_input[0][0], path_heap[goal_state][0][3].pos_input[0][1], path_heap[goal_state][0][3].pos_input[0][2], goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 4)
@@ -1277,7 +1283,10 @@ class Airis:
             old_stats = [mc.getFullStat(key) for key in fullStatKeys]
             sleep(.05)
             stats = [mc.getFullStat(key) for key in fullStatKeys]
-
+            if old_stats[1] == stats[1]:
+                old_stats = [mc.getFullStat(key) for key in fullStatKeys]
+                sleep(.05)
+                stats = [mc.getFullStat(key) for key in fullStatKeys]
 
 
     def move_forward(self, rob, stats):
@@ -1329,6 +1338,10 @@ class Airis:
             old_stats = [mc.getFullStat(key) for key in fullStatKeys]
             sleep(.05)
             stats = [mc.getFullStat(key) for key in fullStatKeys]
+            if old_stats[1] == stats[1]:
+                old_stats = [mc.getFullStat(key) for key in fullStatKeys]
+                sleep(.05)
+                stats = [mc.getFullStat(key) for key in fullStatKeys]
 
 
     def mine(self, rob):
