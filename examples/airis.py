@@ -460,11 +460,11 @@ class Airis:
                 print('adding current state to debug_checked', current_state)
             else:
                 break
-
-            try:
-                self.state_output[tuple(current_state.pos_input[0])][3] = 2
-            except KeyError:
-                self.state_output[tuple(current_state.pos_input[0])] = [current_state.pos_input[0][0], current_state.pos_input[0][1], current_state.pos_input[0][2], 2]
+            if (current_state.pos_input[0][0], current_state.pos_input[0][1], current_state.pos_input[0][2]) in self.explored_states:
+                try:
+                    self.state_output[tuple(current_state.pos_input[0])][3] = 2
+                except KeyError:
+                    self.state_output[tuple(current_state.pos_input[0])] = [current_state.pos_input[0][0], current_state.pos_input[0][1], current_state.pos_input[0][2], 2]
             # print('current state pos info', current_state.pos_input, 'grid info', current_state.grid_input)
             goal_compare = self.compare(current_state.pos_input, current_state.grid_input)
             current_state.compare = goal_compare
@@ -509,7 +509,7 @@ class Airis:
                         if check[2] != 1:
                             self.edges_output[(tuple(current_state.pos_input[0]), tuple(check[4].pos_input[0]))][6] = 0
 
-                        if check[2] == 1:
+                        if check[2] == 1 and (check[4].pos_input[0][0], check[4].pos_input[0][1], check[4].pos_input[0][2]) in self.explored_states:
                             debug_connected.add(check[4])
                             print('adding to debug_connected', check[4])
                             if check[4] not in check_states:
@@ -520,10 +520,10 @@ class Airis:
                         else:
                             if check[4] not in check_states:
                                 if 240 > check[4].pos_input[0][0] > -240 and 240 > check[4].pos_input[0][2] > -240: 
-                                    if new_count > 0:
+                                    if new_count > 4:
                                         if (current_state, check[4], act) not in self.sanity_check:
                                             heapq.heappush(goal_heap, (check[4].compare, -check[2], step + 1, heap_iter, check[4], act, current_state))
-                                            if self.time_step > 20 and check[4] != original_state:
+                                            if self.time_step > 20:
                                                 print('Ending Search', check[4])
                                                 end_search = True
                                     else:
@@ -585,7 +585,7 @@ class Airis:
                     # except KeyError:
                     #     target_state.incoming_edges[act] = [current_state]
 
-                    if new_state.confidence == 1:
+                    if new_state.confidence == 1 and (target_state.pos_input[0][0], target_state.pos_input[0][1], target_state.pos_input[0][2]) in self.explored_states:
                         debug_connected.add(target_state)
                         print('adding to debug_connected', target_state)
                         if target_state not in check_states:
@@ -596,10 +596,10 @@ class Airis:
                     else:
                         if target_state not in check_states:
                             if 240 > target_state.pos_input[0][0] > -240 and 240 > target_state.pos_input[0][2] > -240:
-                                if new_count > 0:
+                                if new_count > 4:
                                     if (current_state, target_state, act) not in self.sanity_check:
                                         heapq.heappush(goal_heap, (target_state.compare, -new_state.confidence, step + 1, heap_iter, target_state, act, current_state))
-                                        if self.time_step > 20 and target_state != original_state:
+                                        if self.time_step > 20:
                                             print('Ending Search', target_state)
                                             end_search = True
                                 else:
@@ -636,18 +636,20 @@ class Airis:
                 if goal_heap:
                     self.sanity_check.add((goal_heap[0][6], goal_heap[0][4], goal_heap[0][5]))
                     self.action_plan.insert(0, (goal_heap[0][5], goal_heap[0][4], goal_heap[0][1], (goal_heap[0][6].outgoing_edges[goal_heap[0][5]][0], goal_heap[0][6].outgoing_edges[goal_heap[0][5]][1])))
-                    try:
-                        self.state_output[tuple(goal_state.pos_input[0])][3] = 4
-                    except KeyError:
-                        self.state_output[tuple(goal_state.pos_input[0])] = [goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 4]
+                    if (goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2]) in self.explored_states:
+                        try:
+                            self.state_output[tuple(goal_state.pos_input[0])][3] = 4
+                        except KeyError:
+                            self.state_output[tuple(goal_state.pos_input[0])] = [goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 4]
                     self.edges_output[(tuple(goal_heap[0][6].pos_input[0]), tuple(goal_state.pos_input[0]))] = [goal_heap[0][6].pos_input[0][0], goal_heap[0][6].pos_input[0][1], goal_heap[0][6].pos_input[0][2], goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 1, 1]
                     goal_state = goal_heap[0][6]
                 else:
                     self.action_plan.insert(0, (goal_heap2[0][5], goal_heap2[0][4], goal_heap2[0][1], (goal_heap2[0][6].outgoing_edges[goal_heap2[0][5]][0], goal_heap2[0][6].outgoing_edges[goal_heap2[0][5]][1])))
-                    try:
-                        self.state_output[tuple(goal_state.pos_input[0])][3] = 4
-                    except KeyError:
-                        self.state_output[tuple(goal_state.pos_input[0])] = [goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 4]
+                    if (goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2]) in self.explored_states:
+                        try:
+                            self.state_output[tuple(goal_state.pos_input[0])][3] = 4
+                        except KeyError:
+                            self.state_output[tuple(goal_state.pos_input[0])] = [goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 4]
                     self.edges_output[(tuple(goal_heap2[0][6].pos_input[0]), tuple(goal_state.pos_input[0]))] = [goal_heap2[0][6].pos_input[0][0], goal_heap2[0][6].pos_input[0][1], goal_heap2[0][6].pos_input[0][2], goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 1, 1]
                     goal_state = goal_heap2[0][6]
 
@@ -658,10 +660,11 @@ class Airis:
                     # print('Previous State', path_heap[goal_state][0][3])
                     print('Original State', original_state)
                     self.action_plan.insert(0, (path_heap[goal_state][0][2], goal_state, path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][2], (path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][0], path_heap[goal_state][0][3].outgoing_edges[path_heap[goal_state][0][2]][1])))
-                    try:
-                        self.state_output[tuple(goal_state.pos_input[0])][3] = 0
-                    except KeyError:
-                        self.state_output[tuple(goal_state.pos_input[0])] = [goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 0]
+                    if (goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2]) in self.explored_states:
+                        try:
+                            self.state_output[tuple(goal_state.pos_input[0])][3] = 0
+                        except KeyError:
+                            self.state_output[tuple(goal_state.pos_input[0])] = [goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 0]
                     try:
                         if path_heap[goal_state][0][3].confidence == 1:
                             self.edges_output[(tuple(path_heap[goal_state][0][3].pos_input[0]), tuple(goal_state.pos_input[0]))][6] = 4 #(path_heap[goal_state][0][3].pos_input[0][0], path_heap[goal_state][0][3].pos_input[0][1], path_heap[goal_state][0][3].pos_input[0][2], goal_state.pos_input[0][0], goal_state.pos_input[0][1], goal_state.pos_input[0][2], 4)
@@ -1272,21 +1275,21 @@ class Airis:
         rob.sendCommand('jump 0')
         sleep(.02)
         self.lookDir(rob, o_pitch, o_yaw)
-        stats = [mc.getFullStat(key) for key in fullStatKeys]
+        # stats = [mc.getFullStat(key) for key in fullStatKeys]
         # if [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2])] != [e_pos[0], math.floor(stats[1]), e_pos[2]]:
         #     if not timedout:
         #         self.center(rob, [e_pos[0], math.floor(stats[1]), e_pos[2]], o_pitch, o_yaw)
-        old_stats = [mc.getFullStat(key) for key in fullStatKeys]
-        sleep(.5)
-        stats = [mc.getFullStat(key) for key in fullStatKeys]
-        while old_stats[1] != stats[1]:
-            old_stats = [mc.getFullStat(key) for key in fullStatKeys]
-            sleep(.05)
-            stats = [mc.getFullStat(key) for key in fullStatKeys]
-            if old_stats[1] == stats[1]:
-                old_stats = [mc.getFullStat(key) for key in fullStatKeys]
-                sleep(.05)
-                stats = [mc.getFullStat(key) for key in fullStatKeys]
+        # old_stats = [mc.getFullStat(key) for key in fullStatKeys]
+        # sleep(.5)
+        # stats = [mc.getFullStat(key) for key in fullStatKeys]
+        # while old_stats[1] != stats[1]:
+        #     old_stats = [mc.getFullStat(key) for key in fullStatKeys]
+        #     sleep(.02)
+        #     stats = [mc.getFullStat(key) for key in fullStatKeys]
+        #     if old_stats[1] == stats[1]:
+        #         old_stats = [mc.getFullStat(key) for key in fullStatKeys]
+        #         sleep(.02)
+        #         stats = [mc.getFullStat(key) for key in fullStatKeys]
 
 
     def move_forward(self, rob, stats):
@@ -1325,23 +1328,23 @@ class Airis:
             if math.floor(stats[1]) != math.floor(e_pos[1]):
                 break
         rob.sendCommand('move 0')
-        sleep(.05)
+        sleep(.02)
         self.lookDir(rob, o_pitch, o_yaw)
-        stats = [mc.getFullStat(key) for key in fullStatKeys]
-        # if [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2])] != [e_pos[0], math.floor(stats[1]), e_pos[2]]:
-        #     if not timedout:
-        #         self.center(rob, [e_pos[0], math.floor(stats[1]), e_pos[2]], o_pitch, o_yaw)
-        old_stats = [mc.getFullStat(key) for key in fullStatKeys]
-        sleep(.5)
-        stats = [mc.getFullStat(key) for key in fullStatKeys]
-        while old_stats[1] != stats[1]:
-            old_stats = [mc.getFullStat(key) for key in fullStatKeys]
-            sleep(.05)
-            stats = [mc.getFullStat(key) for key in fullStatKeys]
-            if old_stats[1] == stats[1]:
-                old_stats = [mc.getFullStat(key) for key in fullStatKeys]
-                sleep(.05)
-                stats = [mc.getFullStat(key) for key in fullStatKeys]
+        # stats = [mc.getFullStat(key) for key in fullStatKeys]
+        # # if [math.floor(stats[0]), math.floor(stats[1]), math.floor(stats[2])] != [e_pos[0], math.floor(stats[1]), e_pos[2]]:
+        # #     if not timedout:
+        # #         self.center(rob, [e_pos[0], math.floor(stats[1]), e_pos[2]], o_pitch, o_yaw)
+        # old_stats = [mc.getFullStat(key) for key in fullStatKeys]
+        # sleep(.5)
+        # stats = [mc.getFullStat(key) for key in fullStatKeys]
+        # while old_stats[1] != stats[1]:
+        #     old_stats = [mc.getFullStat(key) for key in fullStatKeys]
+        #     sleep(.02)
+        #     stats = [mc.getFullStat(key) for key in fullStatKeys]
+        #     if old_stats[1] == stats[1]:
+        #         old_stats = [mc.getFullStat(key) for key in fullStatKeys]
+        #         sleep(.02)
+        #         stats = [mc.getFullStat(key) for key in fullStatKeys]
 
 
     def mine(self, rob):
