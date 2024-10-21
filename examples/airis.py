@@ -14,6 +14,9 @@ from tagilmo.utils.mathutils import normAngle, degree2rad
 
 
 class State:
+
+    # Each object of this class represents a state in the agent's world model. The state can be a predicted outcome that has not yet been experienced, or a real outcome from actual environment inputs.
+    # The state stores a snapshot of all inputs, every action prediction (edge), and the calculated results of every rule that was checked.
     def __init__(self, pos_input, grid_input):
         self.pos_input = pos_input
         self.grid_input = grid_input
@@ -81,30 +84,21 @@ class Airis:
         # 'mine down 0', 'mine down 45', 'mine down 90', 'mine down 135', 'mine down 180', 'mine down 225', 'mine down 270', 'mine down 315',
 
     def capture_input(self, pos_input, grid_input, action, state, pre, confidence, applied_rules):
+
+        # This method has 2 modes. Pre-Action and Post-Action. I should probably split this into 2 separate methods for readability...
+
+        # This handles the Pre-Action mode
+
         if pre:
+
             self.pos_input = np.asarray([(math.floor(pos_input[0]), math.floor(pos_input[1]), math.floor(pos_input[2]))])
             self.grid_input = np.asarray(grid_input, dtype=np.dtype('U42'))
 
             grid_input_3d = self.grid_input.copy()
             grid_input_3d = grid_input_3d.reshape((5, 5, 5))
 
-            # print('Position', self.pos_input)
-            # print('Grid Calculation: x', self.pos_input[0][0] - self.grid_origin_x, self.pos_input[0][0] + self.grid_origin_x + 1)
-            # print('Grid Calculation: y', self.pos_input[0][1] - self.grid_origin_y, self.pos_input[0][1] + self.grid_origin_y + 1)
-            # print('Grid Calculation: z', self.pos_input[0][2] - self.grid_origin_z, self.pos_input[0][2] + self.grid_origin_z + 1)
-            # print('Input', grid_input_3d)
-            # print('Map pre', pre)
-
-            hold = deepcopy(self.grid_map[self.map_origin_y + self.pos_input[0][1] - self.grid_origin_y:self.map_origin_y + self.pos_input[0][1] + self.grid_origin_y + 1, self.map_origin_z + self.pos_input[0][2] - self.grid_origin_z:self.map_origin_z + self.pos_input[0][2] + self.grid_origin_z + 1, self.map_origin_x + self.pos_input[0][0] - self.grid_origin_x:self.map_origin_x + self.pos_input[0][0] + self.grid_origin_x + 1])
-            hold = hold.flatten()
-            # map_mismatch = [i for i, v in enumerate(hold) if v != self.grid_input[i] and v != '']
-            # if map_mismatch:
-            #     for index in map_mismatch:
-            #         print('Map Mismatch!')
-            #         print('Index', index)
-            #         print('Actual', self.grid_input[index])
-            #         print('Map', hold[index])
-            #     raise Exception
+            # Fill in the internal world map with the current inputs
+            # This world map is used to fill in the predicted block grid of states that have not yet been experienced
 
             self.grid_map[self.map_origin_y + self.pos_input[0][1] - self.grid_origin_y:self.map_origin_y + self.pos_input[0][1] + self.grid_origin_y + 1, self.map_origin_z + self.pos_input[0][2] - self.grid_origin_z:self.map_origin_z + self.pos_input[0][2] + self.grid_origin_z + 1, self.map_origin_x + self.pos_input[0][0] - self.grid_origin_x:self.map_origin_x + self.pos_input[0][0] + self.grid_origin_x + 1] = grid_input_3d
 
@@ -118,6 +112,9 @@ class Airis:
             #         print('Grid was', v, 'but now its', post[i])
             #         raise Exception
             self.grid_output = dict()
+
+            # If there is not currently a plan, clear the state and edge outputs, clear self.states for planning then add the current state,
+            # check if the current state is in the state_graph and add it if necessary, and add to the self.explored_states set
 
             if not self.action_plan:
                 # for key in self.state_output.keys():
@@ -244,18 +241,6 @@ class Airis:
 
             new_grid_3d = new_grid_input.copy()
             new_grid_3d = new_grid_3d.reshape((5, 5, 5))
-            # print('new pos', new_pos_input)
-
-            hold = deepcopy(self.grid_map[self.map_origin_y + new_pos_input[0][1] - self.grid_origin_y:self.map_origin_y + new_pos_input[0][1] + self.grid_origin_y + 1, self.map_origin_z + new_pos_input[0][2] - self.grid_origin_z:self.map_origin_z + new_pos_input[0][2] + self.grid_origin_z + 1, self.map_origin_x + new_pos_input[0][0] - self.grid_origin_x:self.map_origin_x + new_pos_input[0][0] + self.grid_origin_x + 1])
-            hold = hold.flatten()
-            # map_mismatch = [i for i, v in enumerate(hold) if v != new_grid_input[i] and v != '']
-            # if map_mismatch:
-            #     for index in map_mismatch:
-            #         print('Map Mismatch!')
-            #         print('Index', index)
-            #         print('Actual', self.grid_input[index])
-            #         print('Map', hold[index])
-            #         raise Exception
 
             try:
                 self.state_output[tuple(self.pos_input[0])][3] = 5
